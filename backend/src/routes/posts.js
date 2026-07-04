@@ -3,9 +3,11 @@
 // POST /api/classes/:classId/posts          – professor: create a post
 // DELETE /api/classes/:classId/posts/:id   – professor: delete own post
 
-const router  = require('express').Router({ mergeParams: true });
-const pool    = require('../db/pool');
-const { requireAuth, requireProfessor } = require('../middleware/auth');
+import express from 'express';
+import pool    from '../db/pool.js';
+import { requireAuth, requireProfessor } from '../middleware/auth.js';
+
+const router = express.Router({ mergeParams: true });
 
 // Helper: assert the requesting user is a class member
 async function assertMember(userId, classId, res) {
@@ -100,4 +102,4 @@ router.delete('/:postId', requireAuth, requireProfessor, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

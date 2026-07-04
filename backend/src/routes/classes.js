@@ -5,10 +5,12 @@
 // GET    /api/classes/:id          – get a single class (must be a member)
 // DELETE /api/classes/:id/leave    – student leaves a class
 
-const router             = require('express').Router();
-const pool               = require('../db/pool');
-const { requireAuth, requireProfessor } = require('../middleware/auth');
-const crypto             = require('crypto');
+import express from 'express';
+import crypto  from 'node:crypto';
+import pool    from '../db/pool.js';
+import { requireAuth, requireProfessor } from '../middleware/auth.js';
+
+const router = express.Router();
 
 // ── List my classes ───────────────────────────────────────────────────────────
 router.get('/', requireAuth, async (req, res) => {
@@ -126,4 +128,4 @@ router.delete('/:id/leave', requireAuth, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

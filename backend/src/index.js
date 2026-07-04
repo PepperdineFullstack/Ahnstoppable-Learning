@@ -1,19 +1,19 @@
 // src/index.js
 // Entry point – wires together Express, Socket.IO, and all route handlers.
 
-require('dotenv').config();
- 
-const express    = require('express');
-const http       = require('http');
-const { Server } = require('socket.io');
-const cors       = require('cors');
- 
-const authRoutes      = require('./routes/auth');
-const classRoutes     = require('./routes/classes');
-const postRoutes      = require('./routes/posts');
-const commentRoutes   = require('./routes/comments');
-const classroomRoutes = require('./routes/classroom');
-const registerSockets = require('./socket');
+import 'dotenv/config';
+
+import express    from 'express';
+import http       from 'node:http';
+import { Server } from 'socket.io';
+import cors       from 'cors';
+
+import authRoutes      from './routes/auth.js';
+import classRoutes     from './routes/classes.js';
+import postRoutes      from './routes/posts.js';
+import commentRoutes   from './routes/comments.js';
+import classroomRoutes from './routes/classroom.js';
+import registerSockets from './socket/index.js';
  
 const app    = express();
 const server = http.createServer(app);

@@ -2,9 +2,9 @@
 // Verifies the JWT sent as a Bearer token in the Authorization header.
 // Attaches { id, email, role } to req.user on success.
 
-const jwt = require('jsonwebtoken');
+import jwt from 'jsonwebtoken';
 
-function requireAuth(req, res, next) {
+export function requireAuth(req, res, next) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Missing or malformed Authorization header.' });
@@ -21,11 +21,9 @@ function requireAuth(req, res, next) {
 }
 
 // Extra guard – attach after requireAuth to protect professor-only endpoints
-function requireProfessor(req, res, next) {
+export function requireProfessor(req, res, next) {
   if (req.user?.role !== 'professor') {
     return res.status(403).json({ error: 'Only professors can perform this action.' });
   }
   next();
 }
-
-module.exports = { requireAuth, requireProfessor };
