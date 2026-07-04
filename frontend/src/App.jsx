@@ -6,6 +6,7 @@ import SignIn from "./pages/SignIn";
 import HomeDashboard from "./pages/HomeDashboard";
 import ClassDashboard from "./pages/ClassDashboard";
 import Register from "./pages/Register";
+import AuthCallback from "./pages/AuthCallback";
 
 function PrivateRoute({ children }) {
   const { user } = useAuth();
@@ -19,6 +20,7 @@ function App() {
         <Routes>
           <Route path="/"               element={<SignIn />} />
           <Route path="/register"       element={<Register />} />
+          <Route path="/auth/callback"  element={<AuthCallback />} />
           <Route path="/home"           element={<PrivateRoute><HomeDashboard /></PrivateRoute>} />
           {/* classId comes from the URL — ClassDashboard reads it via useParams() */}
           <Route path="/class/:classId" element={<PrivateRoute><ClassDashboard /></PrivateRoute>} />

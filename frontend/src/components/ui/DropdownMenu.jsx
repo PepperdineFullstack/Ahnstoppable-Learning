@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
-function DropdownMenu(){ 
+function DropdownMenu(){
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -18,9 +20,9 @@ function DropdownMenu(){
   }, []);
 
   const menuItems = [
-    { label: 'Home', path: '/home', handleClick: () => {} },
+    { label: 'Home', path: '/home' },
     // { label: 'Class Dashboard', path: '/class' },
-    { label: 'Sign Out', path: '/' },
+    { label: 'Sign Out', path: '/', handleClick: logout }, // clear token + disconnect socket
   ];
 
   return (
@@ -38,7 +40,7 @@ function DropdownMenu(){
           {menuItems.map((item) => (
             <button
               key={item.path}
-              onClick={() => { item.handleClick; navigate(item.path); setIsOpen(false); }}
+              onClick={() => { item.handleClick?.(); navigate(item.path); setIsOpen(false); }}
               className="w-full text-left px-4 py-3 text-sm text-slate-700 dark:text-slate-300
                 hover:bg-slate-100 dark:hover:bg-slate-700 first:rounded-t-lg last:rounded-b-lg
                 transition-colors"

@@ -41,7 +41,7 @@ function Register() {
     }
     setLoading(true);
     try {
-      await register(form.email, form.password, form.name);
+      await register(form.email, form.password, form.name, form.role);
       navigate("/home");
     } catch (err) {
       setError(err.response?.data?.error ?? "Registration failed. Please try again.");
@@ -62,6 +62,27 @@ function Register() {
             </h1>
 
             <form className="mt-8 sm:mt-10 space-y-5" onSubmit={handleRegister}>
+
+              {/* Role */}
+              <div>
+                <label className="std-text text-sm mb-2 block">I am a</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {["student", "professor"].map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, role: r }))}
+                      className={`py-3 px-4 text-sm font-semibold rounded-md border transition-all active:scale-[0.98] ${
+                        form.role === r
+                          ? "bg-blue-600 border-blue-600 text-white"
+                          : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 std-text hover:bg-slate-50 dark:hover:bg-slate-700"
+                      }`}
+                    >
+                      {r === "student" ? "Student" : "Professor"}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               {/* Full name */}
               <div>

@@ -3,11 +3,12 @@
 // The token is read at connect-time so it's always fresh.
  
 import { io } from 'socket.io-client';
- 
-const socket = io(import.meta.env.VITE_API_URL ?? 'http://localhost:4000', {
+import { API_URL } from './axios';
+
+const socket = io(API_URL, {
   autoConnect: false,          // connect manually when entering a class
   transports: ['websocket'],
   auth: (cb) => cb({ token: localStorage.getItem('token') }),
 });
- 
+
 export default socket;
