@@ -1,5 +1,4 @@
 import React from "react";
-import CommentHeader from "./CommentHeader";
 
 function Reply({
     id= 0,

@@ -1,0 +1,30 @@
+{
+  "name": "ahnstoppable-learning-frontend",
+  "version": "1.0.0",
+  "description": "Discussion Board App for Class — frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/evancurls/Ahnstoppable-Learning.git"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.13.4",
+    "lucide-react": "^1.7.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router-dom": "^7.13.1",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.1",
+    "tailwindcss": "^4.2.1",
+    "vite": "^7.3.1"
+  }
+}
