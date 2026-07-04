@@ -1,8 +1,14 @@
 // src/components/classroom/discussion-board/QuestionsList.jsx
 import React from "react";
 import Comment from "./Comment/Comment";
+import { useAuth } from "../../../context/AuthContext";
 
-function QuestionsList({ items = [], onAddReply, showNames }) {
+function QuestionsList({ items = [], onAddReply, onDeleteComment, onDeleteReply, showNames }) {
+  const { user } = useAuth();
+  // Own comments are always deletable; professors can moderate any
+  const canDelete = (authorId) =>
+    user && (user.role === "professor" || authorId === user.id);
+
   if (items.length === 0) {
     return (
       <p className="text-xs text-slate-400 dark:text-slate-500 text-center pt-4">
@@ -26,6 +32,8 @@ function QuestionsList({ items = [], onAddReply, showNames }) {
           text={comment.content}
           replies={comment.replies ?? []}
           onAddReply={onAddReply}
+          onDelete={canDelete(comment.author_id) ? () => onDeleteComment(comment.id) : undefined}
+          onDeleteReply={onDeleteReply}
           showNames={showNames}
         />
       ))}

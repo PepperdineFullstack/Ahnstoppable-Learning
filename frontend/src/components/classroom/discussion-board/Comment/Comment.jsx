@@ -12,6 +12,8 @@ function Comment({
   text = "Sample Text",
   replies = [],
   onAddReply,
+  onDelete,
+  onDeleteReply,
   showNames,
 }) {
   const [showReplies, setShowReplies] = useState(false);
@@ -20,7 +22,7 @@ function Comment({
     <div className="py-6 border-b pl-2 border-slate-200 dark:border-slate-800 last:border-0 bg-white dark:bg-slate-900 transition-colors">
       <div className="flex flex-col gap-1">
         {/* Comment body */}
-        <Reply name={name} date={date} text={text} />
+        <Reply name={name} date={date} text={text} onDelete={onDelete} />
 
         {/* Reply input + toggle */}
         <div className="border-slate-100 dark:border-slate-800 ml-2 mt-2">
@@ -30,6 +32,7 @@ function Comment({
             replies={replies}
             showReplies={showReplies}
             onToggle={() => setShowReplies((v) => !v)}
+            onDeleteReply={(replyId) => onDeleteReply(id, replyId)}
             showNames={showNames}
           />
         </div>

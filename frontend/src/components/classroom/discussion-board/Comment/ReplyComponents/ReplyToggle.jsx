@@ -1,7 +1,7 @@
 import React from 'react';
 import RepliesList from './RepliesList'; // Adjust path as needed
 
-function ReplyToggle({ replies = [], showReplies, onToggle, showNames}) {
+function ReplyToggle({ replies = [], showReplies, onToggle, onDeleteReply, showNames}) {
   // IF NO REPLIES, DONT RENDER ANYTHING 
   if (replies.length === 0) return null;
 
@@ -21,7 +21,7 @@ function ReplyToggle({ replies = [], showReplies, onToggle, showNames}) {
       
       {showReplies && (
         <div className="mt-4 space-y-4">
-           <RepliesList replies={replies} showNames={showNames} />
+           <RepliesList replies={replies} onDeleteReply={onDeleteReply} showNames={showNames} />
         </div>
       )}
     </div>

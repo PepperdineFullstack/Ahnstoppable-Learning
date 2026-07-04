@@ -1,8 +1,13 @@
 // src/components/classroom/discussion-board/Comment/ReplyComponents/RepliesList.jsx
 import React from "react";
 import Reply from "../Reply";
+import { useAuth } from "../../../../../context/AuthContext";
 
-function RepliesList({ replies = [], showNames}) {
+function RepliesList({ replies = [], onDeleteReply, showNames}) {
+  const { user } = useAuth();
+  const canDelete = (authorId) =>
+    user && (user.role === "professor" || authorId === user.id);
+
   if (replies.length === 0) return null;
 
   return (
@@ -16,6 +21,7 @@ function RepliesList({ replies = [], showNames}) {
             minute: "2-digit",
           })}
           text={reply.content}
+          onDelete={canDelete(reply.author_id) ? () => onDeleteReply(reply.id) : undefined}
         />
       ))}
     </div>

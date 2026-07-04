@@ -45,6 +45,24 @@ function DiscussionPost({ post, setPosts, showNames }) {
     }
   }
 
+  // Deletes: allowed for the author or the class's professor (moderation).
+  // Socket events 'comment:deleted' / 'reply:deleted' handle the state update.
+  async function deleteComment(commentId) {
+    try {
+      await api.delete(`/api/posts/${post.id}/comments/${commentId}`);
+    } catch (err) {
+      console.error("Failed to delete comment:", err);
+    }
+  }
+
+  async function deleteReply(commentId, replyId) {
+    try {
+      await api.delete(`/api/posts/${post.id}/comments/${commentId}/replies/${replyId}`);
+    } catch (err) {
+      console.error("Failed to delete reply:", err);
+    }
+  }
+
   return (
     <div className="w-full rounded-lg shadow-md p-4 sm:p-6 border bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
       {/* Post header */}
@@ -71,6 +89,8 @@ function DiscussionPost({ post, setPosts, showNames }) {
       <QuestionsList
         items={post.comments ?? []}
         onAddReply={addReply}
+        onDeleteComment={deleteComment}
+        onDeleteReply={deleteReply}
         showNames={showNames}
       />
     </div>

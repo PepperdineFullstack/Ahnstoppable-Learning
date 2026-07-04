@@ -1,10 +1,12 @@
 import React from "react";
+import { Trash2 } from "lucide-react";
 
 function Reply({
     id= 0,
     name="Anonymous",
     date="0:00 AM",
     text= "Sample Text",
+    onDelete,
 }){
     return (
     <div className="group">
@@ -16,6 +18,15 @@ function Reply({
           <h4 className="text-sm font-bold std-text dark:text-slate-100">{name}</h4>
           <span className="text-xs text-slate-500 dark:text-slate-500">• {date}</span>
         </div>
+        {onDelete && (
+          <button
+            onClick={onDelete}
+            title="Delete"
+            className="ml-auto mr-2 p-1.5 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 sm:opacity-0 sm:group-hover:opacity-100 transition-all cursor-pointer"
+          >
+            <Trash2 size={16} />
+          </button>
+        )}
       </div>
       <p className="text-[15px] leading-relaxed text-slate-700 dark:text-slate-300 pl-5">
         {text}

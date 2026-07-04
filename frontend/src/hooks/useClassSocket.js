@@ -1,63 +1,49 @@
 // src/hooks/useClassSocket.js
-// Connects to Socket.IO, joins the class room, and wires up real-time events.
+// Joins the class room on the SHARED socket (api/socket.js) and wires up
+// real-time discussion events. Other components (e.g. UnderstandCheck)
+// listen on the same connection, so cleanup only removes THIS hook's
+// handlers – never blanket socket.off(event).
 //
 // Usage:
 //   const { connected } = useClassSocket({ classId, setPosts });
-//
-// The hook patches setPosts directly so that posts, comments, and replies
-// all update live without any page refresh.
 
-import { useEffect, useRef, useState } from 'react';
-import { io } from 'socket.io-client';
-
-const SOCKET_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+import { useEffect, useState } from 'react';
+import socket from '../api/socket';
 
 export function useClassSocket({ classId, setPosts }) {
-  const socketRef = useRef(null);
-  const [connected, setConnected] = useState(false);
+  const [connected, setConnected] = useState(socket.connected);
 
   useEffect(() => {
     if (!classId) return;
 
-    const token = localStorage.getItem('token');
-    const socket = io(SOCKET_URL, {
-      auth: { token },
-      transports: ['websocket'],
-    });
-    socketRef.current = socket;
-
-    // ── Connection lifecycle ─────────────────────────────────────────────────
-    socket.on('connect',    () => setConnected(true));
-    socket.on('disconnect', () => setConnected(false));
-    socket.on('connect_error', (err) => {
-      console.error('[socket] connection error:', err.message);
-    });
-
-    // Join the class room once connected
-    socket.on('connect', () => {
+    // ── Named handlers so cleanup can remove exactly these ───────────────────
+    const onConnect = () => {
+      setConnected(true);
       socket.emit('joinClass', { classId });
-    });
+    };
+    const onDisconnect = () => setConnected(false);
+    const onConnectError = (err) => {
+      console.error('[socket] connection error:', err.message);
+    };
 
-    // ── Real-time post events ────────────────────────────────────────────────
-    socket.on('post:new', (post) => {
+    const onPostNew = (post) => {
       setPosts((prev) => [...prev, { ...post, comments: [] }]);
-    });
+    };
 
-    socket.on('post:deleted', ({ postId }) => {
+    const onPostDeleted = ({ postId }) => {
       setPosts((prev) => prev.filter((p) => p.id !== postId));
-    });
+    };
 
-    // ── Real-time comment events ─────────────────────────────────────────────
-    socket.on('comment:new', (comment) => {
+    const onCommentNew = (comment) => {
       setPosts((prev) =>
         prev.map((post) => {
           if (post.id !== comment.post_id) return post;
           return { ...post, comments: [...(post.comments ?? []), comment] };
         })
       );
-    });
+    };
 
-    socket.on('comment:deleted', ({ commentId, postId }) => {
+    const onCommentDeleted = ({ commentId, postId }) => {
       setPosts((prev) =>
         prev.map((post) => {
           if (post.id !== postId) return post;
@@ -67,10 +53,9 @@ export function useClassSocket({ classId, setPosts }) {
           };
         })
       );
-    });
+    };
 
-    // ── Real-time reply events ───────────────────────────────────────────────
-    socket.on('reply:new', (reply) => {
+    const onReplyNew = (reply) => {
       setPosts((prev) =>
         prev.map((post) => ({
           ...post,
@@ -80,9 +65,9 @@ export function useClassSocket({ classId, setPosts }) {
           }),
         }))
       );
-    });
+    };
 
-    socket.on('reply:deleted', ({ replyId, commentId }) => {
+    const onReplyDeleted = ({ replyId, commentId }) => {
       setPosts((prev) =>
         prev.map((post) => ({
           ...post,
@@ -95,13 +80,40 @@ export function useClassSocket({ classId, setPosts }) {
           }),
         }))
       );
-    });
+    };
+
+    socket.on('connect',         onConnect);
+    socket.on('disconnect',      onDisconnect);
+    socket.on('connect_error',   onConnectError);
+    socket.on('post:new',        onPostNew);
+    socket.on('post:deleted',    onPostDeleted);
+    socket.on('comment:new',     onCommentNew);
+    socket.on('comment:deleted', onCommentDeleted);
+    socket.on('reply:new',       onReplyNew);
+    socket.on('reply:deleted',   onReplyDeleted);
+
+    // Already connected (e.g. switching classes): join immediately.
+    // Otherwise open the shared connection – onConnect joins the room.
+    if (socket.connected) {
+      socket.emit('joinClass', { classId });
+    } else {
+      socket.connect();
+    }
 
     return () => {
       socket.emit('leaveClass', { classId });
+      socket.off('connect',         onConnect);
+      socket.off('disconnect',      onDisconnect);
+      socket.off('connect_error',   onConnectError);
+      socket.off('post:new',        onPostNew);
+      socket.off('post:deleted',    onPostDeleted);
+      socket.off('comment:new',     onCommentNew);
+      socket.off('comment:deleted', onCommentDeleted);
+      socket.off('reply:new',       onReplyNew);
+      socket.off('reply:deleted',   onReplyDeleted);
       socket.disconnect();
     };
   }, [classId, setPosts]);
 
-  return { connected, socket: socketRef.current };
+  return { connected, socket };
 }
