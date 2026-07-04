@@ -6,6 +6,7 @@
 import express from 'express';
 import pool    from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
+import { assertMember } from '../utils/membership.js';
 
 const router = express.Router({ mergeParams: true });
 
@@ -20,9 +21,14 @@ router.post('/understand', requireAuth, async (req, res) => {
   }
 
   try {
+    if (!(await assertMember(req.user.id, classId, res))) return;
+
+    // One current response per user – re-clicking moves the vote
     await pool.query(
       `INSERT INTO understand_checks (class_id, user_id, response)
-       VALUES ($1, $2, $3)`,
+       VALUES ($1, $2, $3)
+       ON CONFLICT (class_id, user_id)
+       DO UPDATE SET response = EXCLUDED.response, checked_at = NOW()`,
       [classId, req.user.id, response]
     );
 
@@ -50,6 +56,8 @@ router.post('/understand', requireAuth, async (req, res) => {
 router.get('/understand', requireAuth, async (req, res) => {
   const { classId } = req.params;
   try {
+    if (!(await assertMember(req.user.id, classId, res))) return;
+
     const { rows } = await pool.query(
       `SELECT response, COUNT(*)::int AS count
        FROM   understand_checks
@@ -69,6 +77,8 @@ router.get('/understand', requireAuth, async (req, res) => {
 router.get('/talents', requireAuth, async (req, res) => {
   const { classId } = req.params;
   try {
+    if (!(await assertMember(req.user.id, classId, res))) return;
+
     const { rows } = await pool.query(
       `SELECT u.id, u.name, u.talents
        FROM   users u

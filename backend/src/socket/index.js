@@ -50,20 +50,26 @@ export default function registerSocketHandlers(io) {
         return;
       }
 
-      // Leave any previously joined class rooms
+      // Leave any previously joined class rooms (base and role rooms)
       for (const room of socket.rooms) {
         if (room !== socket.id && room.startsWith('class:')) {
           socket.leave(room);
         }
       }
 
+      // Base room gets role-neutral events; the role room gets the
+      // masked/unmasked variants of comment:new / reply:new.
+      const roleRoom = socket.user.role === 'professor' ? 'professors' : 'students';
       socket.join(`class:${classId}`);
-      console.log(`[socket] user ${socket.user.id} joined class:${classId}`);
+      socket.join(`class:${classId}:${roleRoom}`);
+      console.log(`[socket] user ${socket.user.id} joined class:${classId} (${roleRoom})`);
       socket.emit('joinedClass', { classId });
     });
 
     socket.on('leaveClass', ({ classId }) => {
       socket.leave(`class:${classId}`);
+      socket.leave(`class:${classId}:professors`);
+      socket.leave(`class:${classId}:students`);
     });
 
     socket.on('disconnect', () => {

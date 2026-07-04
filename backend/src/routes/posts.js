@@ -6,21 +6,9 @@
 import express from 'express';
 import pool    from '../db/pool.js';
 import { requireAuth, requireProfessor } from '../middleware/auth.js';
+import { assertMember } from '../utils/membership.js';
 
 const router = express.Router({ mergeParams: true });
-
-// Helper: assert the requesting user is a class member
-async function assertMember(userId, classId, res) {
-  const { rows } = await pool.query(
-    `SELECT 1 FROM class_members WHERE user_id = $1 AND class_id = $2`,
-    [userId, classId]
-  );
-  if (rows.length === 0) {
-    res.status(403).json({ error: 'You are not enrolled in this class.' });
-    return false;
-  }
-  return true;
-}
 
 // ── Get posts for a date ──────────────────────────────────────────────────────
 router.get('/', requireAuth, async (req, res) => {
