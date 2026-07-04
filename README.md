@@ -21,11 +21,11 @@ Sign-in supports **email/password** and **Google OAuth** (Passport). Accounts ar
 ### 1. Database
 
 ```bash
-createdb AhnstoppableLearning
-psql -d AhnstoppableLearning -f backend/schema.sql
+createdb ahnstoppable
+psql -d ahnstoppable -f backend/schema.sql
 ```
 
-(For a database created before the OAuth update, run `psql -d AhnstoppableLearning -f backend/migrations/001_oauth_understand.sql` instead.)
+(For a database created before the OAuth update, run `psql -d ahnstoppable -f backend/migrations/001_oauth_understand.sql` instead.)
 
 ### 2. Backend
 
@@ -41,7 +41,7 @@ npm run dev            # http://localhost:4000
 | Variable | Purpose |
 |---|---|
 | `PORT` | API port (default 4000) |
-| `DATABASE_URL` | e.g. `postgresql://postgres:PASSWORD@localhost:5432/AhnstoppableLearning` |
+| `DATABASE_URL` | e.g. `postgresql://postgres:PASSWORD@localhost:5432/ahnstoppable` |
 | `JWT_SECRET` | long random string used to sign auth tokens |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | from Google Cloud Console |
 | `GOOGLE_CALLBACK_URL` | `http://localhost:4000/api/auth/google/callback` (must be an authorized redirect URI in Google Cloud Console) |

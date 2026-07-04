@@ -6,10 +6,12 @@
 CREATE TABLE users (
     id          SERIAL PRIMARY KEY,
     email       TEXT NOT NULL UNIQUE,
-    password    TEXT NOT NULL,          -- bcrypt hash
+    password    TEXT,                   -- bcrypt hash; NULL for Google-only accounts
     name        TEXT NOT NULL,
     role        TEXT NOT NULL DEFAULT 'student'  -- 'student' | 'professor'
                 CHECK (role IN ('student','professor')),
+    google_id   TEXT UNIQUE,            -- Google profile id (TEXT: too large for INT)
+    avatar      TEXT,                   -- profile photo URL from Google
     talents     INTEGER NOT NULL DEFAULT 0,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -63,13 +65,14 @@ CREATE TABLE replies (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
  
--- Understanding check responses (👍 👋 👎)
+-- Understanding check responses (👍 👋 👎) – one current response per user per class
 CREATE TABLE understand_checks (
     id          SERIAL PRIMARY KEY,
     class_id    INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
     user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     response    TEXT NOT NULL CHECK (response IN ('thumbs_up','hand','thumbs_down')),
-    checked_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    checked_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (class_id, user_id)
 );
  
 -- Indexes for common query patterns

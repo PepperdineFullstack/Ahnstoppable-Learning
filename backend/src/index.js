@@ -7,6 +7,7 @@ import express    from 'express';
 import http       from 'node:http';
 import { Server } from 'socket.io';
 import cors       from 'cors';
+import passport   from './config/passport.js';
 
 import authRoutes      from './routes/auth.js';
 import classRoutes     from './routes/classes.js';
@@ -33,6 +34,7 @@ registerSockets(io);
 // ── Express middleware ────────────────────────────────────────────────────────
 app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') ?? '*' }));
 app.use(express.json());
+app.use(passport.initialize());
  
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/api/auth',                              authRoutes);
