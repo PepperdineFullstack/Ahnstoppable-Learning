@@ -1,21 +1,23 @@
 // src/index.js
 // Entry point – wires together Express, Socket.IO, and all route handlers.
 
-require('dotenv').config();
+// MUST stay the first import – db/pool.js reads DATABASE_URL at module scope,
+// and ESM evaluates imported modules in source order.
+import 'dotenv/config';
  
-const express    = require('express');
-const http       = require('http');
-const { Server } = require('socket.io');
-const cors       = require('cors');
+import express from 'express';
+import http from 'node:http';
+import { Server } from 'socket.io';
+import cors from 'cors';
  
-const authRoutes      = require('./routes/auth');
-const classRoutes     = require('./routes/classes');
-const postRoutes      = require('./routes/posts');
-const commentRoutes   = require('./routes/comments');
-const classroomRoutes = require('./routes/classroom');
-const registerSockets = require('./socket');
+import authRoutes from './routes/auth.js';
+import classRoutes from './routes/classes.js';
+import postRoutes from './routes/posts.js';
+import commentRoutes from './routes/comments.js';
+import classroomRoutes from './routes/classroom.js';
+import registerSockets from './socket/index.js';
  
-const app    = express();
+const app = express();
 const server = http.createServer(app);
  
 // ── Socket.IO ────────────────────────────────────────────────────────────────
@@ -40,7 +42,11 @@ app.use('/api/classes',                           classRoutes);
 app.use('/api/classes/:classId/posts',            postRoutes);
 app.use('/api/posts/:postId/comments',            commentRoutes);
 app.use('/api/classes/:classId',                  classroomRoutes);
- 
+
+app.get('/', (req, res) => {
+  res.json({message: "Hello"})
+});
+
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
  
@@ -49,6 +55,8 @@ app.use((_req, res) => res.status(404).json({ error: 'Not found.' }));
  
 // ── Start ─────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 4000;
+
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
+

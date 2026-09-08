@@ -3,9 +3,11 @@
 // GET  /api/classes/:classId/understand  – get current-session tally (professor)
 // GET  /api/classes/:classId/talents     – get sorted talent leaderboard
 
-const router = require('express').Router({ mergeParams: true });
-const pool   = require('../db/pool');
-const { requireAuth } = require('../middleware/auth');
+import express from 'express';
+import pool from '../db/pool.js';
+import { requireAuth } from '../middleware/auth.js';
+
+const router = express.Router({ mergeParams: true });
 
 // ── Submit understanding check ────────────────────────────────────────────────
 router.post('/understand', requireAuth, async (req, res) => {
@@ -82,4 +84,4 @@ router.get('/talents', requireAuth, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

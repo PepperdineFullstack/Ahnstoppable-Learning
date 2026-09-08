@@ -2,7 +2,7 @@
 // Verifies the JWT sent as a Bearer token in the Authorization header.
 // Attaches { id, email, role } to req.user on success.
 
-const jwt = require('jsonwebtoken');
+import jwt from 'jsonwebtoken';
 
 function requireAuth(req, res, next) {
   const header = req.headers.authorization;
@@ -28,4 +28,4 @@ function requireProfessor(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireProfessor };
+export { requireAuth, requireProfessor };

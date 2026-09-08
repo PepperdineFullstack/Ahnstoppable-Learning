@@ -5,9 +5,11 @@
 // POST   /api/posts/:postId/comments/:id/replies   – reply to a comment
 // DELETE /api/posts/:postId/comments/:commentId/replies/:replyId – delete own reply
 
-const router = require('express').Router({ mergeParams: true });
-const pool   = require('../db/pool');
-const { requireAuth } = require('../middleware/auth');
+import express from 'express';
+import pool from '../db/pool.js';
+import { requireAuth } from '../middleware/auth.js';
+
+const router = express.Router({ mergeParams: true });
 
 // ── List comments (with nested replies) ──────────────────────────────────────
 router.get('/', requireAuth, async (req, res) => {
@@ -202,4 +204,4 @@ router.delete('/:commentId/replies/:replyId', requireAuth, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

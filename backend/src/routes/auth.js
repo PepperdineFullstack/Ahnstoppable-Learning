@@ -2,10 +2,12 @@
 // POST /api/auth/register  – create a new user account
 // POST /api/auth/login     – exchange credentials for a JWT
  
-const router  = require('express').Router();
-const bcrypt  = require('bcrypt');
-const jwt     = require('jsonwebtoken');
-const pool    = require('../db/pool');
+import express from 'express';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import pool from '../db/pool.js';
+ 
+const router = express.Router();
  
 const SALT_ROUNDS = 12;
  
@@ -81,4 +83,4 @@ function signToken(user) {
   );
 }
  
-module.exports = router;
+export default router;

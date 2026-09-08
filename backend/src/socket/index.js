@@ -8,10 +8,10 @@
 //   4. From that point on, all post / comment / reply events are broadcast to
 //      everyone in that room from the REST handlers via io.to(`class:${classId}`).emit(…).
 
-const jwt  = require('jsonwebtoken');
-const pool = require('../db/pool');
+import jwt from 'jsonwebtoken';
+import pool from '../db/pool.js';
 
-module.exports = function registerSocketHandlers(io) {
+export default function registerSocketHandlers(io) {
   // ── Auth middleware ──────────────────────────────────────────────────────────
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token;
