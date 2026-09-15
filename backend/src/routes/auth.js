@@ -77,7 +77,7 @@ router.post('/login', async (req, res) => {
 // ── Helper ────────────────────────────────────────────────────────────────────
 function signToken(user) {
   return jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
+    { id: user.id, email: user.email, name: user.name, role: user.role },
     process.env.JWT_SECRET,
     { expiresIn: '7d' }
   );
