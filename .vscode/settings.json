@@ -1,0 +1,15 @@
+{
+  // Tailwind v4 at-rules (@apply, @theme, @layer, @utility, @import "tailwindcss")
+  // are compiled by the Vite plugin; the built-in CSS validator doesn't know them.
+  "css.lint.unknownAtRules": "ignore",
+  "scss.lint.unknownAtRules": "ignore",
+
+  // Pair with the "Tailwind CSS IntelliSense" extension (bradlc.vscode-tailwindcss)
+  // for class autocomplete and hover previews inside @apply.
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
+  "editor.quickSuggestions": {
+    "strings": "on"
+  }
+}

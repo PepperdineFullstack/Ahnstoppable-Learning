@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 function DropdownMenu(){ 
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -18,14 +20,13 @@ function DropdownMenu(){
   }, []);
 
   const menuItems = [
-    { label: 'Home', path: '/home', handleClick: () => {} },
-    // { label: 'Class Dashboard', path: '/class' },
-    { label: 'Sign Out', path: '/' },
+    { label: 'Home',     path: '/home' },
+    { label: 'Sign Out', path: '/', onSelect: logout },
   ];
 
   return (
     <div className="relative" ref={menuRef}>
-      <button onClick={() => setIsOpen(prev => !prev)}>
+      <button type="button" onClick={() => setIsOpen(prev => !prev)}>
         <span className="text-slate-900 dark:text-slate-400 font-semibold text-4xl cursor-pointer 
           hover:text-slate-900/90 hover:dark:text-slate-400/90 transition-colors">
           ☰
@@ -38,7 +39,8 @@ function DropdownMenu(){
           {menuItems.map((item) => (
             <button
               key={item.path}
-              onClick={() => { item.handleClick; navigate(item.path); setIsOpen(false); }}
+              type="button"
+              onClick={() => { item.onSelect?.(); navigate(item.path); setIsOpen(false); }}
               className="w-full text-left px-4 py-3 text-sm text-slate-700 dark:text-slate-300
                 hover:bg-slate-100 dark:hover:bg-slate-700 first:rounded-t-lg last:rounded-b-lg
                 transition-colors"

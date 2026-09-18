@@ -4,14 +4,17 @@
 // Flow:
 //   1. Client connects and sends { token } in the auth handshake.
 //   2. Server verifies the JWT – invalid tokens are disconnected immediately.
-//   3. Client joins a class room by emitting  joinClass({ classId }).
-//   4. From that point on, all post / comment / reply events are broadcast to
-//      everyone in that room from the REST handlers via io.to(`class:${classId}`).emit(…).
+//   3. Client joins a class by emitting joinClass({ classId }). After a
+//      membership check the socket is placed in two rooms:
+//        class:<id>          – everyone (used for delete events, which carry only IDs)
+//        class:<id>:<role>   – 'professor' or 'student' (used by emitToClass so
+//                              students receive masked payloads)
+//   4. REST handlers broadcast via socket/emit.js.
 
-const jwt  = require('jsonwebtoken');
-const pool = require('../db/pool');
+import jwt from 'jsonwebtoken';
+import { isClassMember } from '../middleware/auth.js';
 
-module.exports = function registerSocketHandlers(io) {
+export default function registerSocketHandlers(io) {
   // ── Auth middleware ──────────────────────────────────────────────────────────
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token;
@@ -19,7 +22,7 @@ module.exports = function registerSocketHandlers(io) {
 
     try {
       const payload = jwt.verify(token, process.env.JWT_SECRET);
-      socket.user = payload; // { id, email, role }
+      socket.user = payload; // { id, email, name, role }
       next();
     } catch {
       next(new Error('Invalid or expired token.'));
@@ -30,17 +33,11 @@ module.exports = function registerSocketHandlers(io) {
   io.on('connection', (socket) => {
     console.log(`[socket] user ${socket.user.id} connected (${socket.id})`);
 
-    // Client emits this after navigating to a class page
-    socket.on('joinClass', async ({ classId }) => {
-      if (!classId) return;
+    socket.on('joinClass', async ({ classId } = {}) => {
+      if (!/^\d+$/.test(String(classId))) return;
 
-      // Verify the user is actually a member before letting them in
       try {
-        const { rows } = await pool.query(
-          `SELECT 1 FROM class_members WHERE user_id = $1 AND class_id = $2`,
-          [socket.user.id, classId]
-        );
-        if (rows.length === 0) {
+        if (!(await isClassMember(socket.user.id, classId))) {
           socket.emit('error', 'You are not enrolled in this class.');
           return;
         }
@@ -50,24 +47,25 @@ module.exports = function registerSocketHandlers(io) {
         return;
       }
 
-      // Leave any previously joined class rooms
+      // Leave any previously joined class rooms (both the shared and role rooms)
       for (const room of socket.rooms) {
         if (room !== socket.id && room.startsWith('class:')) {
           socket.leave(room);
         }
       }
 
-      socket.join(`class:${classId}`);
+      socket.join([`class:${classId}`, `class:${classId}:${socket.user.role}`]);
       console.log(`[socket] user ${socket.user.id} joined class:${classId}`);
       socket.emit('joinedClass', { classId });
     });
 
-    socket.on('leaveClass', ({ classId }) => {
+    socket.on('leaveClass', ({ classId } = {}) => {
       socket.leave(`class:${classId}`);
+      socket.leave(`class:${classId}:${socket.user.role}`);
     });
 
     socket.on('disconnect', () => {
       console.log(`[socket] user ${socket.user.id} disconnected (${socket.id})`);
     });
   });
-};
+}

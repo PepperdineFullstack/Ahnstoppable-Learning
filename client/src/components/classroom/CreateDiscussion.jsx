@@ -27,7 +27,12 @@ function CreateDiscussion({ classRoomId }) {
     setError(null);
 
     try {
-      await api.post(`/api/classes/${classRoomId}/posts`, { title, content });
+      await api.post(`/api/classes/${classRoomId}/posts`, {
+        title,
+        content,
+        // Professor's local calendar day, so the post lands on their "today"
+        post_date: new Date().toLocaleDateString("en-CA"),
+      });
       // The socket event 'post:new' handled by useClassSocket updates the feed —
       // no manual state patch needed here.
       clearForm();
@@ -42,6 +47,7 @@ function CreateDiscussion({ classRoomId }) {
     return (
       <div className="w-full p-6 flex items-center justify-center">
         <button
+          type="button"
           className="blue-btn"
           onClick={() => setIsOpen(true)}
         >
@@ -88,10 +94,15 @@ function CreateDiscussion({ classRoomId }) {
           <p className="col-span-2 text-sm text-red-400">{error}</p>
         )}
 
-        <div className="col-span-2 flex flex-row items-end justify-end gap-2">
+        <div className="col-span-2 flex flex-row items-center justify-end gap-2">
+          {!submitting && (!title.trim() || !content.trim()) && (
+            <p className="mr-auto text-sm text-slate-300">
+              Add a title and a description to post.
+            </p>
+          )}
           <button
             type="button"
-            className="blue-btn"
+            className="white-btn"
             onClick={clearForm}
             disabled={submitting}
           >

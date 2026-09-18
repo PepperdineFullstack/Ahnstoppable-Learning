@@ -63,17 +63,43 @@ CREATE TABLE replies (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
  
--- Understanding check responses (👍 👋 👎)
+-- Standing student questions (asked any time, independent of posts)
+CREATE TABLE questions (
+    id          SERIAL PRIMARY KEY,
+    class_id    INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    author_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content     TEXT NOT NULL,
+    answer      TEXT,                                   -- professor's written answer
+    answered_at TIMESTAMPTZ,
+    asked_date  DATE NOT NULL DEFAULT CURRENT_DATE,     -- day-by-day view, like posts.post_date
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Understanding-check rounds (professor starts / ends one during class)
+CREATE TABLE understand_rounds (
+    id          SERIAL PRIMARY KEY,
+    class_id    INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    label       TEXT,                                   -- e.g. "Slide 12: regression"
+    started_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ended_at    TIMESTAMPTZ                             -- NULL while the round is open
+);
+
+-- Student responses (👍 👋 👎), one per student per round, upserted on change
 CREATE TABLE understand_checks (
     id          SERIAL PRIMARY KEY,
+    round_id    INTEGER NOT NULL REFERENCES understand_rounds(id) ON DELETE CASCADE,
     class_id    INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
     user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     response    TEXT NOT NULL CHECK (response IN ('thumbs_up','hand','thumbs_down')),
-    checked_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    checked_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (round_id, user_id)
 );
- 
+
 -- Indexes for common query patterns
 CREATE INDEX idx_posts_class_date   ON posts(class_id, post_date);
 CREATE INDEX idx_comments_post      ON comments(post_id);
 CREATE INDEX idx_replies_comment    ON replies(comment_id);
 CREATE INDEX idx_members_class      ON class_members(class_id);
+CREATE INDEX idx_questions_class_date ON questions(class_id, asked_date);
+CREATE UNIQUE INDEX idx_rounds_one_open_per_class ON understand_rounds(class_id) WHERE ended_at IS NULL;
+CREATE INDEX idx_rounds_class_started ON understand_rounds(class_id, started_at);

@@ -74,7 +74,8 @@ function CreateCourse({ submitCourse }){
                         </div>
                         <div className="col-span-2 gap-2 flex flex-row items-end justify-end">
                             <button
-                                className="blue-btn"
+                                type="button"
+                                className="white-btn"
                                 onClick={clearForm}
                             >
                                 Cancel
@@ -92,7 +93,7 @@ function CreateCourse({ submitCourse }){
             (
                 <div className="flex items-center justify-center">
                 <button 
-                    type="submit"
+                    type="button"
                     className="blue-btn w-1/2 max-w-2xl"
                     onClick={() => {setCourse(!isMakingCourse)
                 }}>

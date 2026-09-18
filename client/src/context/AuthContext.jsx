@@ -22,8 +22,11 @@ export function AuthProvider({ children }) {
     return data.user;
   }, []);
 
-  const register = useCallback(async (email, password, name, role = 'student') => {
-    const { data } = await api.post('/api/auth/register', { email, password, name, role });
+  const register = useCallback(async (email, password, name, role = 'student', professorCode) => {
+    const { data } = await api.post('/api/auth/register', {
+      email, password, name, role,
+      professor_code: role === 'professor' ? professorCode : undefined,
+    });
     localStorage.setItem('token', data.token);
     localStorage.setItem('user',  JSON.stringify(data.user));
     setToken(data.token);
@@ -45,7 +48,6 @@ export function AuthProvider({ children }) {
   );
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>');

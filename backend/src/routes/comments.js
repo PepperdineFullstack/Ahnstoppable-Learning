@@ -1,23 +1,28 @@
 // src/routes/comments.js
-// GET    /api/posts/:postId/comments           – list all comments (with replies) for a post
-// POST   /api/posts/:postId/comments           – add a comment to a post
-// DELETE /api/posts/:postId/comments/:id       – delete own comment
-// POST   /api/posts/:postId/comments/:id/replies   – reply to a comment
-// DELETE /api/posts/:postId/comments/:commentId/replies/:replyId – delete own reply
+// GET    /api/posts/:postId/comments                              – list comments (with replies)
+// POST   /api/posts/:postId/comments                              – add a comment
+// DELETE /api/posts/:postId/comments/:commentId                   – delete own comment
+// POST   /api/posts/:postId/comments/:commentId/replies           – reply to a comment
+// DELETE /api/posts/:postId/comments/:commentId/replies/:replyId  – delete own reply
+//
+// Every route requires membership in the post's class (requireClassMemberViaPost
+// sets req.classId). Student-authored rows are masked for student requesters on
+// both the REST response and the socket broadcast – see utils/anonymity.js.
 
-const router = require('express').Router({ mergeParams: true });
-const pool   = require('../db/pool');
-const { requireAuth } = require('../middleware/auth');
+import express from 'express';
+import pool from '../db/pool.js';
+import { requireAuth, requireClassMemberViaPost } from '../middleware/auth.js';
+import { forRequester } from '../utils/anonymity.js';
+import { emitToClass } from '../socket/emit.js';
+
+const router = express.Router({ mergeParams: true });
 
 // ── List comments (with nested replies) ──────────────────────────────────────
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', requireAuth, requireClassMemberViaPost, async (req, res) => {
   const { postId } = req.params;
   try {
-    const isProfessor = req.user.role === 'professor';
-
-    // Fetch comments
     const { rows: comments } = await pool.query(
-      `SELECT c.id, c.content, c.created_at,
+      `SELECT c.id, c.post_id, c.content, c.created_at,
               u.id AS author_id, u.name AS author_name, u.role AS author_role
        FROM   comments c
        JOIN   users u ON u.id = c.author_id
@@ -26,7 +31,6 @@ router.get('/', requireAuth, async (req, res) => {
       [postId]
     );
 
-    // Fetch all replies in one query
     const commentIds = comments.map(c => c.id);
     let replies = [];
     if (commentIds.length > 0) {
@@ -42,20 +46,14 @@ router.get('/', requireAuth, async (req, res) => {
       replies = rows;
     }
 
-    // Professors get real names, students always get Anonymous
-    function maskName(row) {
-      if (isProfessor) return row;
-      return { ...row, author_name: 'Anonymous' };
-    }
-
     const replyMap = {};
     for (const r of replies) {
-      (replyMap[r.comment_id] ??= []).push(maskName(r));
+      (replyMap[r.comment_id] ??= []).push(r);
     }
 
-    const result = comments.map(c => ({
-      ...maskName(c),
-      replies: replyMap[c.id] ?? []
+    const result = comments.map(c => forRequester(req, {
+      ...c,
+      replies: replyMap[c.id] ?? [],
     }));
 
     return res.json(result);
@@ -66,19 +64,12 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 // ── Add a comment ─────────────────────────────────────────────────────────────
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', requireAuth, requireClassMemberViaPost, async (req, res) => {
   const { postId } = req.params;
   const { content } = req.body;
   if (!content?.trim()) return res.status(400).json({ error: 'content is required.' });
 
   try {
-    // Look up class_id for this post so we can emit to the right socket room
-    const { rows: postRows } = await pool.query(
-      `SELECT class_id FROM posts WHERE id = $1`, [postId]
-    );
-    if (postRows.length === 0) return res.status(404).json({ error: 'Post not found.' });
-    const classId = postRows[0].class_id;
-
     const { rows } = await pool.query(
       `INSERT INTO comments (post_id, author_id, content)
        VALUES ($1, $2, $3)
@@ -94,13 +85,12 @@ router.post('/', requireAuth, async (req, res) => {
       replies:     [],
     };
 
-    const io = req.app.get('io');
-    io.to(`class:${classId}`).emit('comment:new', comment);
+    emitToClass(req.app.get('io'), req.classId, 'comment:new', comment);
 
     // Award talent point for participating
     await pool.query(`UPDATE users SET talents = talents + 1 WHERE id = $1`, [req.user.id]);
 
-    return res.status(201).json(comment);
+    return res.status(201).json(forRequester(req, comment));
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Server error.' });
@@ -108,14 +98,9 @@ router.post('/', requireAuth, async (req, res) => {
 });
 
 // ── Delete a comment ──────────────────────────────────────────────────────────
-router.delete('/:commentId', requireAuth, async (req, res) => {
+router.delete('/:commentId', requireAuth, requireClassMemberViaPost, async (req, res) => {
   const { postId, commentId } = req.params;
   try {
-    const { rows: postRows } = await pool.query(
-      `SELECT class_id FROM posts WHERE id = $1`, [postId]
-    );
-    const classId = postRows[0]?.class_id;
-
     const { rowCount } = await pool.query(
       `DELETE FROM comments WHERE id = $1 AND post_id = $2 AND author_id = $3`,
       [commentId, postId, req.user.id]
@@ -123,7 +108,7 @@ router.delete('/:commentId', requireAuth, async (req, res) => {
     if (rowCount === 0) return res.status(404).json({ error: 'Comment not found.' });
 
     const io = req.app.get('io');
-    io.to(`class:${classId}`).emit('comment:deleted', {
+    io.to(`class:${req.classId}`).emit('comment:deleted', {
       commentId: Number(commentId),
       postId: Number(postId),
     });
@@ -136,17 +121,18 @@ router.delete('/:commentId', requireAuth, async (req, res) => {
 });
 
 // ── Add a reply ───────────────────────────────────────────────────────────────
-router.post('/:commentId/replies', requireAuth, async (req, res) => {
+router.post('/:commentId/replies', requireAuth, requireClassMemberViaPost, async (req, res) => {
   const { postId, commentId } = req.params;
   const { content } = req.body;
   if (!content?.trim()) return res.status(400).json({ error: 'content is required.' });
 
   try {
-    const { rows: postRows } = await pool.query(
-      `SELECT class_id FROM posts WHERE id = $1`, [postId]
+    // Make sure the comment belongs to this post before inserting under it.
+    const { rowCount: commentExists } = await pool.query(
+      `SELECT 1 FROM comments WHERE id = $1 AND post_id = $2`,
+      [commentId, postId]
     );
-    if (postRows.length === 0) return res.status(404).json({ error: 'Post not found.' });
-    const classId = postRows[0].class_id;
+    if (commentExists === 0) return res.status(404).json({ error: 'Comment not found.' });
 
     const { rows } = await pool.query(
       `INSERT INTO replies (comment_id, author_id, content)
@@ -162,12 +148,11 @@ router.post('/:commentId/replies', requireAuth, async (req, res) => {
       author_role: req.user.role,
     };
 
-    const io = req.app.get('io');
-    io.to(`class:${classId}`).emit('reply:new', reply);
+    emitToClass(req.app.get('io'), req.classId, 'reply:new', reply);
 
     await pool.query(`UPDATE users SET talents = talents + 1 WHERE id = $1`, [req.user.id]);
 
-    return res.status(201).json(reply);
+    return res.status(201).json(forRequester(req, reply));
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Server error.' });
@@ -175,14 +160,9 @@ router.post('/:commentId/replies', requireAuth, async (req, res) => {
 });
 
 // ── Delete a reply ────────────────────────────────────────────────────────────
-router.delete('/:commentId/replies/:replyId', requireAuth, async (req, res) => {
-  const { postId, commentId, replyId } = req.params;
+router.delete('/:commentId/replies/:replyId', requireAuth, requireClassMemberViaPost, async (req, res) => {
+  const { commentId, replyId } = req.params;
   try {
-    const { rows: postRows } = await pool.query(
-      `SELECT class_id FROM posts WHERE id = $1`, [postId]
-    );
-    const classId = postRows[0]?.class_id;
-
     const { rowCount } = await pool.query(
       `DELETE FROM replies WHERE id = $1 AND comment_id = $2 AND author_id = $3`,
       [replyId, commentId, req.user.id]
@@ -190,7 +170,7 @@ router.delete('/:commentId/replies/:replyId', requireAuth, async (req, res) => {
     if (rowCount === 0) return res.status(404).json({ error: 'Reply not found.' });
 
     const io = req.app.get('io');
-    io.to(`class:${classId}`).emit('reply:deleted', {
+    io.to(`class:${req.classId}`).emit('reply:deleted', {
       replyId:   Number(replyId),
       commentId: Number(commentId),
     });
@@ -202,4 +182,4 @@ router.delete('/:commentId/replies/:replyId', requireAuth, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

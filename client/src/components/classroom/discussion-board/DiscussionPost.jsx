@@ -4,26 +4,45 @@ import api from "../../../api/axios";
 import QuestionsInput from "./QuestionsInput";
 import QuestionsList from "./QuestionsList";
 
+// Fetched rows win on duplicates; anything that arrived over the socket while
+// the fetch was in flight is kept rather than overwritten.
+function unionById(fetched, existing) {
+  const seen = new Set(fetched.map((x) => x.id));
+  return [...fetched, ...existing.filter((x) => !seen.has(x.id))];
+}
+
 function DiscussionPost({ post, setPosts, showNames }) {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    let ignore = false;
     api
       .get(`/api/posts/${post.id}/comments`)
       .then((res) => {
+        if (ignore) return;
         setPosts((prev) =>
-          prev.map((p) =>
-            p.id === post.id ? { ...p, comments: res.data } : p
-          )
+          prev.map((p) => {
+            if (p.id !== post.id) return p;
+            const existing = p.comments ?? [];
+            const comments = unionById(res.data, existing).map((c) => {
+              const prevC = existing.find((x) => x.id === c.id);
+              return prevC
+                ? { ...c, replies: unionById(c.replies ?? [], prevC.replies ?? []) }
+                : c;
+            });
+            return { ...p, comments };
+          })
         );
       })
       .catch((err) => console.error("Failed to load comments:", err));
-  }, [post.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { ignore = true; };
+  }, [post.id, setPosts]);
 
   async function addComment(text) {
     if (!text.trim() || submitting) return;
     setSubmitting(true);
     try {
+      // The socket event 'comment:new' handles the state update.
       await api.post(`/api/posts/${post.id}/comments`, { content: text });
     } catch (err) {
       console.error("Failed to post comment:", err);

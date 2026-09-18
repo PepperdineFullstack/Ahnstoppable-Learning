@@ -10,7 +10,11 @@ function RepliesList({ replies = [], showNames}) {
       {replies.map((reply) => (
         <Reply
           key={reply.id}
-          name={showNames ? (reply.author_name ?? "Anonymous") : "Anonymous"}
+          name={
+            (showNames || reply.author_role === "professor") && reply.author_name
+              ? reply.author_name
+              : "Anonymous"
+          }
           date={new Date(reply.created_at).toLocaleTimeString([], {
             hour: "numeric",
             minute: "2-digit",

@@ -6,16 +6,18 @@ import SignIn from "./pages/SignIn";
 import HomeDashboard from "./pages/HomeDashboard";
 import ClassDashboard from "./pages/ClassDashboard";
 import Register from "./pages/Register";
+import SiteTagline from "./components/ui/SiteTagline";
 
 function PrivateRoute({ children }) {
-  const { user } = useAuth();
-  return user ? children : <Navigate to="/" replace />;
+  const { user, token } = useAuth();
+  return user && token ? children : <Navigate to="/" replace />;
 }
 
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <SiteTagline />
         <Routes>
           <Route path="/"               element={<SignIn />} />
           <Route path="/register"       element={<Register />} />

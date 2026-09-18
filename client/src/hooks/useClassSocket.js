@@ -1,76 +1,50 @@
 // src/hooks/useClassSocket.js
-// Connects to Socket.IO, joins the class room, and wires up real-time events.
+// Subscribes to real-time post / comment / reply events on the shared socket
+// and patches the `posts` state in place. Connection and room membership are
+// handled by useClassRoom (called in ClassDashboard); this hook only listens.
 //
 // Usage:
-//   const { connected } = useClassSocket({ classId, setPosts });
-//
-// The hook patches setPosts directly so that posts, comments, and replies
-// all update live without any page refresh.
+//   useClassSocket({ classId, setPosts, date });
 
-import { useEffect, useRef, useState } from 'react';
-import { io } from 'socket.io-client';
+import { useEffect } from 'react';
+import socket from '../api/socket';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
-
-export function useClassSocket({ classId, setPosts }) {
-  const socketRef = useRef(null);
-  const [connected, setConnected] = useState(false);
-
+export function useClassSocket({ classId, setPosts, date }) {
   useEffect(() => {
     if (!classId) return;
 
-    const token = localStorage.getItem('token');
-    const socket = io(SOCKET_URL, {
-      auth: { token },
-      transports: ['websocket'],
-    });
-    socketRef.current = socket;
-
-    // ── Connection lifecycle ─────────────────────────────────────────────────
-    socket.on('connect',    () => setConnected(true));
-    socket.on('disconnect', () => setConnected(false));
-    socket.on('connect_error', (err) => {
-      console.error('[socket] connection error:', err.message);
-    });
-
-    // Join the class room once connected
-    socket.on('connect', () => {
-      socket.emit('joinClass', { classId });
-    });
-
-    // ── Real-time post events ────────────────────────────────────────────────
-    socket.on('post:new', (post) => {
+    // ── Posts ────────────────────────────────────────────────────────────────
+    const onPostNew = (post) => {
+      // The feed shows one day at a time; ignore posts for other days.
+      if (post.post_date !== date) return;
       setPosts((prev) => [...prev, { ...post, comments: [] }]);
-    });
+    };
 
-    socket.on('post:deleted', ({ postId }) => {
+    const onPostDeleted = ({ postId }) => {
       setPosts((prev) => prev.filter((p) => p.id !== postId));
-    });
+    };
 
-    // ── Real-time comment events ─────────────────────────────────────────────
-    socket.on('comment:new', (comment) => {
+    // ── Comments ─────────────────────────────────────────────────────────────
+    const onCommentNew = (comment) => {
       setPosts((prev) =>
         prev.map((post) => {
           if (post.id !== comment.post_id) return post;
           return { ...post, comments: [...(post.comments ?? []), comment] };
         })
       );
-    });
+    };
 
-    socket.on('comment:deleted', ({ commentId, postId }) => {
+    const onCommentDeleted = ({ commentId, postId }) => {
       setPosts((prev) =>
         prev.map((post) => {
           if (post.id !== postId) return post;
-          return {
-            ...post,
-            comments: (post.comments ?? []).filter((c) => c.id !== commentId),
-          };
+          return { ...post, comments: (post.comments ?? []).filter((c) => c.id !== commentId) };
         })
       );
-    });
+    };
 
-    // ── Real-time reply events ───────────────────────────────────────────────
-    socket.on('reply:new', (reply) => {
+    // ── Replies ──────────────────────────────────────────────────────────────
+    const onReplyNew = (reply) => {
       setPosts((prev) =>
         prev.map((post) => ({
           ...post,
@@ -80,28 +54,33 @@ export function useClassSocket({ classId, setPosts }) {
           }),
         }))
       );
-    });
+    };
 
-    socket.on('reply:deleted', ({ replyId, commentId }) => {
+    const onReplyDeleted = ({ replyId, commentId }) => {
       setPosts((prev) =>
         prev.map((post) => ({
           ...post,
           comments: (post.comments ?? []).map((comment) => {
             if (comment.id !== commentId) return comment;
-            return {
-              ...comment,
-              replies: (comment.replies ?? []).filter((r) => r.id !== replyId),
-            };
+            return { ...comment, replies: (comment.replies ?? []).filter((r) => r.id !== replyId) };
           }),
         }))
       );
-    });
+    };
+
+    const handlers = [
+      ['post:new',        onPostNew],
+      ['post:deleted',    onPostDeleted],
+      ['comment:new',     onCommentNew],
+      ['comment:deleted', onCommentDeleted],
+      ['reply:new',       onReplyNew],
+      ['reply:deleted',   onReplyDeleted],
+    ];
+    for (const [event, fn] of handlers) socket.on(event, fn);
 
     return () => {
-      socket.emit('leaveClass', { classId });
-      socket.disconnect();
+      // Remove only our handlers; other components share this socket.
+      for (const [event, fn] of handlers) socket.off(event, fn);
     };
-  }, [classId, setPosts]);
-
-  return { connected, socket: socketRef.current };
+  }, [classId, setPosts, date]);
 }

@@ -1,8 +1,6 @@
 import React from "react";
-import CommentHeader from "./CommentHeader";
 
 function Reply({
-    id= 0,
     name="Anonymous",
     date="0:00 AM",
     text= "Sample Text",
