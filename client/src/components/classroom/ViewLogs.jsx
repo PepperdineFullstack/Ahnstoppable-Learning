@@ -1,19 +1,35 @@
-import React, { useState } from "react"
-import { ChevronLeft, ChevronRight } from "lucide-react";
+// src/components/classroom/ViewLogs.jsx
+// Day navigator for the discussion feed: prev / next arrows, a button that
+// opens the full-year calendar, and a "Today" shortcut.
+import React, { useState } from "react";
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import YearCalendar, { MIN_DATE } from "./YearCalendar";
 
-function ViewLogs({ date, today, handleDate }) {
-  function shiftDay(delta) {
-    const d = new Date(date + 'T00:00:00');
-    d.setDate(d.getDate() + delta);
-    const next = d.toISOString().split('T')[0];
-    if (next >= '2026-01-01' && next <= today) {
+function formatLong(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    weekday: "short", month: "short", day: "numeric", year: "numeric",
+  });
+}
+
+function ViewLogs({ date, today, handleDate, classId }) {
+  const [calendarOpen, setCalendarOpen] = useState(false);
+
+  function select(next) {
+    if (next >= MIN_DATE && next <= today) {
       handleDate({ target: { value: next } });
     }
   }
 
-  function goToday() {
-    handleDate({ target: { value: today } });
+  function shiftDay(delta) {
+    // Work in local calendar days; toISOString() would shift by the UTC offset.
+    const [y, m, d] = date.split("-").map(Number);
+    select(new Date(y, m - 1, d + delta).toLocaleDateString("en-CA"));
   }
+
+  const navBtn = `flex items-center justify-center w-8 h-8 border border-gray-200 rounded-lg
+                  text-gray-500 hover:bg-gray-100 disabled:opacity-35 disabled:cursor-default
+                  dark:border-gray-700 dark:hover:bg-gray-800 transition-colors`;
 
   return (
     <div className="w-full p-2 sm:p-3 flex flex-wrap items-center gap-2">
@@ -21,39 +37,41 @@ function ViewLogs({ date, today, handleDate }) {
 
       <div className="flex items-center gap-1.5">
         <button
+          type="button"
           onClick={() => shiftDay(-1)}
-          disabled={date <= "2026-01-01"}
-          className="flex items-center justify-center w-8 h-8 border border-gray-200 rounded-lg
-                     text-gray-500 hover:bg-gray-100 disabled:opacity-35 disabled:cursor-default
-                     dark:border-gray-700 dark:hover:bg-gray-800 transition-colors"
+          disabled={date <= MIN_DATE}
+          aria-label="Previous day"
+          className={navBtn}
         >
           <ChevronLeft size={16} />
         </button>
 
-        <input
-          type="date"
-          value={date}
-          min="2026-01-01"
-          max={today}
-          onChange={handleDate}
-          className="h-8 px-2 text-sm border border-gray-200 rounded-lg bg-white
-                     dark:bg-gray-900 dark:border-gray-700 dark:text-white
-                     focus:outline-none focus:ring-2 focus:ring-gray-300 cursor-pointer
-                     max-w-[140px]"
-        />
+        <button
+          type="button"
+          onClick={() => setCalendarOpen(true)}
+          aria-haspopup="dialog"
+          className="h-8 px-3 flex items-center gap-2 text-sm border border-gray-200 rounded-lg bg-white
+                     text-gray-800 hover:bg-gray-100 dark:bg-gray-900 dark:border-gray-700 dark:text-white
+                     dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-300 cursor-pointer
+                     transition-colors whitespace-nowrap"
+        >
+          <CalendarDays size={16} className="text-gray-500" />
+          {formatLong(date)}
+        </button>
 
         <button
+          type="button"
           onClick={() => shiftDay(1)}
           disabled={date >= today}
-          className="flex items-center justify-center w-8 h-8 border border-gray-200 rounded-lg
-                     text-gray-500 hover:bg-gray-100 disabled:opacity-35 disabled:cursor-default
-                     dark:border-gray-700 dark:hover:bg-gray-800 transition-colors"
+          aria-label="Next day"
+          className={navBtn}
         >
           <ChevronRight size={16} />
         </button>
 
         <button
-          onClick={goToday}
+          type="button"
+          onClick={() => select(today)}
           className={`h-8 px-3 text-xs border rounded-lg transition-colors whitespace-nowrap
                       dark:border-gray-700
                       ${date === today
@@ -63,6 +81,16 @@ function ViewLogs({ date, today, handleDate }) {
           Today
         </button>
       </div>
+
+      {calendarOpen && (
+        <YearCalendar
+          classId={classId}
+          selected={date}
+          today={today}
+          onSelect={(next) => { select(next); setCalendarOpen(false); }}
+          onClose={() => setCalendarOpen(false)}
+        />
+      )}
     </div>
   );
 }

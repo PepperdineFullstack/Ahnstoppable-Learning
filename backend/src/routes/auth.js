@@ -1,27 +1,35 @@
 // src/routes/auth.js
 // POST /api/auth/register  – create a new user account
 // POST /api/auth/login     – exchange credentials for a JWT
- 
+
 import express from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import pool from '../db/pool.js';
- 
+
 const router = express.Router();
- 
+
 const SALT_ROUNDS = 12;
- 
+
 // ── Register ──────────────────────────────────────────────────────────────────
 router.post('/register', async (req, res) => {
-  const { email, password, name, role = 'student' } = req.body;
- 
+  const { email, password, name, role = 'student', professor_code } = req.body;
+
   if (!email || !password || !name) {
     return res.status(400).json({ error: 'email, password, and name are required.' });
   }
   if (!['student', 'professor'].includes(role)) {
     return res.status(400).json({ error: "role must be 'student' or 'professor'." });
   }
- 
+  // Professor accounts require the invite code from PROFESSOR_SIGNUP_CODE.
+  // If the env var is unset, professor signup is disabled entirely.
+  if (role === 'professor') {
+    const expected = process.env.PROFESSOR_SIGNUP_CODE;
+    if (!expected || professor_code !== expected) {
+      return res.status(403).json({ error: 'Invalid professor signup code.' });
+    }
+  }
+
   try {
     const hash = await bcrypt.hash(password, SALT_ROUNDS);
     const { rows } = await pool.query(
@@ -41,15 +49,15 @@ router.post('/register', async (req, res) => {
     return res.status(500).json({ error: 'Server error.' });
   }
 });
- 
+
 // ── Login ─────────────────────────────────────────────────────────────────────
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
- 
+
   if (!email || !password) {
     return res.status(400).json({ error: 'email and password are required.' });
   }
- 
+
   try {
     const { rows } = await pool.query(
       `SELECT id, email, name, role, password AS hash FROM users WHERE email = $1`,
@@ -58,13 +66,13 @@ router.post('/login', async (req, res) => {
     if (rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
- 
+
     const user = rows[0];
     const match = await bcrypt.compare(password, user.hash);
     if (!match) {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
- 
+
     const { hash: _removed, ...safeUser } = user;
     const token = signToken(safeUser);
     return res.json({ user: safeUser, token });
@@ -73,7 +81,7 @@ router.post('/login', async (req, res) => {
     return res.status(500).json({ error: 'Server error.' });
   }
 });
- 
+
 // ── Helper ────────────────────────────────────────────────────────────────────
 function signToken(user) {
   return jwt.sign(
@@ -82,5 +90,5 @@ function signToken(user) {
     { expiresIn: '7d' }
   );
 }
- 
+
 export default router;

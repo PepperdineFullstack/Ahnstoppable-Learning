@@ -10,6 +10,7 @@ import CreateDiscussion from "../components/classroom/CreateDiscussion";
 import DiscussionFeed from "../components/classroom/discussion-board/DiscussionFeed";
 import AnonymousToggle from "../components/classroom/AnonymousToggle";
 import { useAuth } from "../context/AuthContext";
+import { useClassRoom } from "../hooks/useClassRoom";
 
 function ClassDashboard() {
   // classId comes from the route: <Route path="/class/:classId" element={<ClassDashboard />} />
@@ -17,6 +18,9 @@ function ClassDashboard() {
   const { user }    = useAuth();
   const [showNames, setShowNames] = useState(user?.role === 'professor');
 
+  // Connects the shared socket and joins this class's room; child components
+  // (DiscussionFeed, UnderstandCheck) only subscribe to events.
+  useClassRoom(classId);
 
   const today = new Date().toLocaleDateString("en-CA");
   const [viewDate, setViewDate] = useState(today);
@@ -34,7 +38,7 @@ function ClassDashboard() {
 
           {/* Date navigator */}
           <div className="w-full overflow-x-auto">
-            <ViewLogs date={viewDate} today={today} handleDate={handleDate} />
+            <ViewLogs date={viewDate} today={today} handleDate={handleDate} classId={classId} />
           </div>
 
           {/* Understanding check — full width on mobile */}

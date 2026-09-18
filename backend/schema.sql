@@ -69,7 +69,8 @@ CREATE TABLE understand_checks (
     class_id    INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
     user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     response    TEXT NOT NULL CHECK (response IN ('thumbs_up','hand','thumbs_down')),
-    checked_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    checked_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (class_id, user_id)     -- one current vote per student; upserted on resubmit
 );
  
 -- Indexes for common query patterns

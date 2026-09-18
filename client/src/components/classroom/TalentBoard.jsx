@@ -1,7 +1,6 @@
 // src/components/classroom/TalentBoard.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import api from "../../api/axios";
-import SectionHeading from "../ui/SectionHeading";
 
 function TalentBoard({ classId }) {
   const [students, setStudents] = useState([]);

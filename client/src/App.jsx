@@ -8,8 +8,8 @@ import ClassDashboard from "./pages/ClassDashboard";
 import Register from "./pages/Register";
 
 function PrivateRoute({ children }) {
-  const { user } = useAuth();
-  return user ? children : <Navigate to="/" replace />;
+  const { user, token } = useAuth();
+  return user && token ? children : <Navigate to="/" replace />;
 }
 
 function App() {

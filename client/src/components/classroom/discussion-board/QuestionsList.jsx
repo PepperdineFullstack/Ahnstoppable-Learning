@@ -17,8 +17,13 @@ function QuestionsList({ items = [], onAddReply, showNames }) {
         <Comment
           key={comment.id}
           id={comment.id}
-          // API returns author_name / created_at / content
-          name={showNames ? (comment.author_name ?? 'Anonymous') : 'Anonymous'}
+          // The server omits author_name for student rows sent to students;
+          // professors can preview the student view with showNames=false.
+          name={
+            (showNames || comment.author_role === 'professor') && comment.author_name
+              ? comment.author_name
+              : 'Anonymous'
+          }
           date={new Date(comment.created_at).toLocaleTimeString([], {
             hour: "numeric",
             minute: "2-digit",

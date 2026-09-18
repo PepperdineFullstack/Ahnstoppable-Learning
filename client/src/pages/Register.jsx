@@ -14,6 +14,7 @@ function Register() {
     password: "",
     confirm:  "",
     role:     "student",
+    professorCode: "",
   });
   const [isVisible, setVisible] = useState(false);
   const [error,     setError]   = useState(null);
@@ -39,9 +40,13 @@ function Register() {
       setError("Password must be at least 6 characters.");
       return;
     }
+    if (form.role === "professor" && !form.professorCode.trim()) {
+      setError("A professor signup code is required.");
+      return;
+    }
     setLoading(true);
     try {
-      await register(form.email, form.password, form.name);
+      await register(form.email, form.password, form.name, form.role, form.professorCode.trim());
       navigate("/home");
     } catch (err) {
       setError(err.response?.data?.error ?? "Registration failed. Please try again.");
@@ -141,6 +146,38 @@ function Register() {
                   )}
                 </div>
               </div>
+
+              {/* Role */}
+              <div>
+                <label className="std-text text-sm mb-2 block" htmlFor="role">I am a</label>
+                <select
+                  id="role"
+                  name="role"
+                  value={form.role}
+                  onChange={handleChange}
+                  className="w-full std-text bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-4 py-3 rounded-md outline-blue-600 focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="student">Student</option>
+                  <option value="professor">Professor</option>
+                </select>
+              </div>
+
+              {/* Professor signup code */}
+              {form.role === "professor" && (
+                <div>
+                  <label className="std-text text-sm mb-2 block" htmlFor="professorCode">Professor signup code</label>
+                  <input
+                    id="professorCode"
+                    name="professorCode"
+                    type="text"
+                    required
+                    value={form.professorCode}
+                    onChange={handleChange}
+                    className="w-full std-text bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-4 py-3 rounded-md outline-blue-600 focus:ring-2 focus:ring-blue-500/20"
+                    placeholder="Provided by your administrator"
+                  />
+                </div>
+              )}
 
               {error && (
                 <p className="text-sm text-red-500 text-center">{error}</p>

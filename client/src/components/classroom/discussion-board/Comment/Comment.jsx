@@ -1,7 +1,6 @@
 // src/components/classroom/discussion-board/Comment/Comment.jsx
 import React, { useState } from "react";
 import Reply from "./Reply";
-import RepliesList from "./ReplyComponents/RepliesList";
 import MakeReply from "./ReplyComponents/MakeReply";
 import ReplyToggle from "./ReplyComponents/ReplyToggle";
 

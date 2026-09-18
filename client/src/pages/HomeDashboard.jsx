@@ -79,7 +79,7 @@ function HomeDashboard() {
         {
           id:    data.id,
           title: data.title,
-          prof:  "Professor",
+          prof:  data.professor_name,
           hours: data.start_time && data.end_time
             ? `${data.start_time} – ${data.end_time}`
             : "Time TBD",
@@ -136,7 +136,7 @@ function HomeDashboard() {
 
           <CourseList
             courses={courseList}
-            onCourseClick={(id) => navigate(`/class/${id}`)}
+            onCourseClick={handleCourseClick}
           />
         </div>
       </main>

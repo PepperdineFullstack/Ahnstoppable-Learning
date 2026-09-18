@@ -1,64 +1,67 @@
 // src/routes/classroom.js
-// POST /api/classes/:classId/understand  – submit a 👍 / 👋 / 👎 response
-// GET  /api/classes/:classId/understand  – get current-session tally (professor)
-// GET  /api/classes/:classId/talents     – get sorted talent leaderboard
+// POST /api/classes/:classId/understand  – member: submit a 👍 / 👋 / 👎 response
+// GET  /api/classes/:classId/understand  – professor: get the current tally
+// GET  /api/classes/:classId/talents     – member: sorted talent leaderboard
 
 import express from 'express';
 import pool from '../db/pool.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireProfessor, requireClassMember } from '../middleware/auth.js';
 
 const router = express.Router({ mergeParams: true });
 
-// ── Submit understanding check ────────────────────────────────────────────────
-router.post('/understand', requireAuth, async (req, res) => {
-  const { classId } = req.params;
-  const { response } = req.body; // 'thumbs_up' | 'hand' | 'thumbs_down'
+const VALID_RESPONSES = ['thumbs_up', 'hand', 'thumbs_down'];
 
-  const valid = ['thumbs_up', 'hand', 'thumbs_down'];
-  if (!valid.includes(response)) {
-    return res.status(400).json({ error: `response must be one of: ${valid.join(', ')}` });
-  }
-
-  try {
-    await pool.query(
-      `INSERT INTO understand_checks (class_id, user_id, response)
-       VALUES ($1, $2, $3)`,
-      [classId, req.user.id, response]
-    );
-
-    // Broadcast the updated tally to everyone in the class room
-    const { rows } = await pool.query(
-      `SELECT response, COUNT(*)::int AS count
+// Count each member's current response within the window. (The unique
+// constraint already guarantees one row per user; DISTINCT ON keeps this
+// correct on databases created before that constraint existed.)
+async function getTally(classId) {
+  const { rows } = await pool.query(
+    `SELECT response, COUNT(*)::int AS count
+     FROM (
+       SELECT DISTINCT ON (user_id) user_id, response
        FROM   understand_checks
        WHERE  class_id = $1
          AND  checked_at >= NOW() - INTERVAL '1 hour'
-       GROUP  BY response`,
-      [classId]
+       ORDER  BY user_id, checked_at DESC
+     ) latest
+     GROUP BY response`,
+    [classId]
+  );
+  return rows;
+}
+
+// ── Submit understanding check ────────────────────────────────────────────────
+router.post('/understand', requireAuth, requireClassMember, async (req, res) => {
+  const { response } = req.body;
+  if (!VALID_RESPONSES.includes(response)) {
+    return res.status(400).json({ error: `response must be one of: ${VALID_RESPONSES.join(', ')}` });
+  }
+
+  try {
+    // One row per (class, user): a repeat submission replaces the earlier vote.
+    await pool.query(
+      `INSERT INTO understand_checks (class_id, user_id, response)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (class_id, user_id)
+       DO UPDATE SET response = EXCLUDED.response, checked_at = NOW()`,
+      [req.classId, req.user.id, response]
     );
 
-    const io = req.app.get('io');
-    io.to(`class:${classId}`).emit('understand:update', rows);
+    // Only professors render the tally, so only their room gets the update.
+    const tally = await getTally(req.classId);
+    req.app.get('io').to(`class:${req.classId}:professor`).emit('understand:update', tally);
 
-    return res.status(201).json({ message: 'Response recorded.', tally: rows });
+    return res.status(201).json({ message: 'Response recorded.', tally });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Server error.' });
   }
 });
 
-// ── Get understanding tally ───────────────────────────────────────────────────
-router.get('/understand', requireAuth, async (req, res) => {
-  const { classId } = req.params;
+// ── Get understanding tally (professor only) ──────────────────────────────────
+router.get('/understand', requireAuth, requireProfessor, requireClassMember, async (req, res) => {
   try {
-    const { rows } = await pool.query(
-      `SELECT response, COUNT(*)::int AS count
-       FROM   understand_checks
-       WHERE  class_id = $1
-         AND  checked_at >= NOW() - INTERVAL '1 hour'
-       GROUP  BY response`,
-      [classId]
-    );
-    return res.json(rows);
+    return res.json(await getTally(req.classId));
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Server error.' });
@@ -66,8 +69,7 @@ router.get('/understand', requireAuth, async (req, res) => {
 });
 
 // ── Talent leaderboard ────────────────────────────────────────────────────────
-router.get('/talents', requireAuth, async (req, res) => {
-  const { classId } = req.params;
+router.get('/talents', requireAuth, requireClassMember, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT u.id, u.name, u.talents
@@ -75,7 +77,7 @@ router.get('/talents', requireAuth, async (req, res) => {
        JOIN   class_members cm ON cm.user_id = u.id
        WHERE  cm.class_id = $1
        ORDER  BY u.talents DESC`,
-      [classId]
+      [req.classId]
     );
     return res.json(rows);
   } catch (err) {

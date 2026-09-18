@@ -10,45 +10,22 @@
     min-width: 150px;
 }
 
-.comment-box {
-    display: flex;
-    flex-direction: column;
-    background-color: white;
-    border: 5px solid #2d4654ff;
-    border-radius: 15px;
-    padding: 7px;
-    margin: 10px;
-}
-
 @layer components {
-  .base-text {
-    @apply text-base normal-case font-medium text-olive-100;
-  }
-  .base-border {
-    @apply border rounded-md px-3.5 py-2 opacity-100 shadow-zinc-500/50 bg-transparent border-slate-600 hover:border-slate-300 w-80 focus:border-slate-800;
-  }
-  .component-border {
-    @apply rounded-lg shadow-md p-6 border bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 w-1/2 normal-case font-medium text-olive-100;
-  }
-
-  .xyz-text {
-    @apply font-bold  text-slate-400;
-  }
   .std-text {
     @apply text-slate-900 dark:text-white font-semibold;
   }
 
-  .xyz-background {
-    @apply px-2 py-1 rounded bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600;
-  }
-
   .blue-btn {
-    @apply px-5 py-2.5 rounded-md font-semibold text-sm tracking-wide transition-all duration-200 cursor-pointer 
-            text-white bg-blue-600 hover:bg-blue-700 active:scale-95 shadow-md flex items-center gap-2;
+    @apply px-5 py-2.5 rounded-md font-semibold text-sm tracking-wide transition-all duration-200 cursor-pointer
+            text-white bg-blue-600 hover:bg-blue-700 active:scale-95 shadow-md flex items-center gap-2
+            disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none
+            disabled:hover:bg-blue-600 disabled:active:scale-100;
   }
   .white-btn {
-    @apply px-5 py-2.5 rounded-md font-semibold text-sm tracking-wide transition-all duration-200 cursor-pointer 
-            text-black bg-white hover:bg-blue-100 active:scale-95 shadow-md flex items-center gap-2;
+    @apply px-5 py-2.5 rounded-md font-semibold text-sm tracking-wide transition-all duration-200 cursor-pointer
+            text-black bg-white hover:bg-blue-100 active:scale-95 shadow-md flex items-center gap-2
+            disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none
+            disabled:hover:bg-white disabled:active:scale-100;
   }
   .emoji-btn {
     @apply w-15 h-15 rounded-4xl text-slate-900 dark:text-white font-semibold text-center text-4xl duration-300 cursor-pointer transition-colors;
@@ -59,7 +36,10 @@
 }
 
 @theme {
-    --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+    /* index.html loads Nunito Sans from Google Fonts */
+    --font-sans: "Nunito Sans", ui-sans-serif, system-ui, sans-serif;
 
-    --font-brand: "Outfit", sans-serif;
+    /* Course-card tint (CourseList.jsx). Values from the original design. */
+    --color-olive-300: oklch(88% 0.011 106.6);
+    --color-olive-400: oklch(73.7% 0.021 106.9);
 }

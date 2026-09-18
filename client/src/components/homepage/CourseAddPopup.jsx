@@ -9,7 +9,7 @@ function CourseAddPopup({ removePopUp, addCourse }){
             <div className="bg-white dark:bg-slate-700 min-w-3/4 w-half p-4">
                 <div className="flex flex-row items-between justify-between p-2">
                     <SectionHeading text="Enroll In a Course" />
-                    <button onClick={removePopUp}>
+                    <button type="button" onClick={removePopUp}>
                         <span className="std-text text-2xl font-semibold cursor-pointer">
                             X
                         </span>
@@ -27,7 +27,7 @@ function CourseAddPopup({ removePopUp, addCourse }){
                     />
                     
                     <div className="flex flex-row items-end justify-end gap-2 pt-2">
-                        <button className="white-btn" onClick={removePopUp}>
+                        <button type="button" className="white-btn" onClick={removePopUp}>
                             Cancel
                         </button>
                         <button className="blue-btn" type="submit">

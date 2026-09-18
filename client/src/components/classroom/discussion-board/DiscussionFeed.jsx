@@ -28,7 +28,7 @@ function DiscussionFeed({ date, classRoomId, showNames }) {
   }, [classRoomId, date]);
 
   // Real-time: posts / comments / replies all patch `posts` via the hook
-  useClassSocket({ classId: classRoomId, setPosts });
+  useClassSocket({ classId: classRoomId, setPosts, date });
 
   if (loading) {
     return (
