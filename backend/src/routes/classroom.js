@@ -1,7 +1,14 @@
 // src/routes/classroom.js
-// POST /api/classes/:classId/understand  – member: submit a 👍 / 👋 / 👎 response
-// GET  /api/classes/:classId/understand  – professor: get the current tally
-// GET  /api/classes/:classId/talents     – member: sorted talent leaderboard
+// Understanding checks run as professor-started rounds:
+//   POST  /api/classes/:classId/understand/rounds           – professor: start a round (409 if one is open)
+//   PATCH /api/classes/:classId/understand/rounds/:roundId/end – professor: end the open round
+//   GET   /api/classes/:classId/understand/rounds?date=      – member: rounds started that day (+ tallies)
+//   POST  /api/classes/:classId/understand                  – member: vote in the open round (409 if none)
+//   GET   /api/classes/:classId/understand                  – member: current round + tally + my vote
+//   GET   /api/classes/:classId/talents                     – member: sorted talent leaderboard
+//
+// Visibility: professors always see tallies. Students see a round's tally only
+// after it has ended. Socket events follow the same rule.
 
 import express from 'express';
 import pool from '../db/pool.js';
@@ -10,58 +17,183 @@ import { requireAuth, requireProfessor, requireClassMember } from '../middleware
 const router = express.Router({ mergeParams: true });
 
 const VALID_RESPONSES = ['thumbs_up', 'hand', 'thumbs_down'];
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-// Count each member's current response within the window. (The unique
-// constraint already guarantees one row per user; DISTINCT ON keeps this
-// correct on databases created before that constraint existed.)
-async function getTally(classId) {
+// ── Helpers ───────────────────────────────────────────────────────────────────
+async function getTally(roundId) {
   const { rows } = await pool.query(
     `SELECT response, COUNT(*)::int AS count
-     FROM (
-       SELECT DISTINCT ON (user_id) user_id, response
-       FROM   understand_checks
-       WHERE  class_id = $1
-         AND  checked_at >= NOW() - INTERVAL '1 hour'
-       ORDER  BY user_id, checked_at DESC
-     ) latest
-     GROUP BY response`,
-    [classId]
+     FROM   understand_checks
+     WHERE  round_id = $1
+     GROUP  BY response`,
+    [roundId]
   );
-  return rows;
+  const responded = rows.reduce((n, r) => n + r.count, 0);
+  return { tally: rows, responded };
 }
 
-// ── Submit understanding check ────────────────────────────────────────────────
-router.post('/understand', requireAuth, requireClassMember, async (req, res) => {
-  const { response } = req.body;
-  if (!VALID_RESPONSES.includes(response)) {
-    return res.status(400).json({ error: `response must be one of: ${VALID_RESPONSES.join(', ')}` });
-  }
+async function countStudents(classId) {
+  const { rows } = await pool.query(
+    `SELECT COUNT(*)::int AS n
+     FROM   class_members cm JOIN users u ON u.id = cm.user_id
+     WHERE  cm.class_id = $1 AND u.role = 'student'`,
+    [classId]
+  );
+  return rows[0].n;
+}
 
+async function getOpenRound(classId) {
+  const { rows } = await pool.query(
+    `SELECT id, class_id, label, started_at, ended_at
+     FROM   understand_rounds
+     WHERE  class_id = $1 AND ended_at IS NULL`,
+    [classId]
+  );
+  return rows[0] ?? null;
+}
+
+// Shape { round, tally, responded, total_students } for a given audience.
+async function roundSnapshot(round, classId, forProfessor) {
+  const total_students = await countStudents(classId);
+  const canSee = forProfessor || (round && round.ended_at);
+  const { tally, responded } = round && canSee ? await getTally(round.id) : { tally: null, responded: null };
+  return { round, tally, responded, total_students };
+}
+
+// Broadcast the round state to both role rooms with role-appropriate tallies.
+async function emitRound(io, classId, round) {
+  io.to(`class:${classId}:professor`).emit('understand:round', await roundSnapshot(round, classId, true));
+  io.to(`class:${classId}:student`).emit('understand:round',   await roundSnapshot(round, classId, false));
+}
+
+// ── Start a round (professor) ─────────────────────────────────────────────────
+router.post('/understand/rounds', requireAuth, requireProfessor, requireClassMember, async (req, res) => {
+  const label = typeof req.body.label === 'string' ? req.body.label.trim().slice(0, 120) : null;
   try {
-    // One row per (class, user): a repeat submission replaces the earlier vote.
-    await pool.query(
-      `INSERT INTO understand_checks (class_id, user_id, response)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (class_id, user_id)
-       DO UPDATE SET response = EXCLUDED.response, checked_at = NOW()`,
-      [req.classId, req.user.id, response]
+    const { rows } = await pool.query(
+      `INSERT INTO understand_rounds (class_id, label) VALUES ($1, $2)
+       RETURNING id, class_id, label, started_at, ended_at`,
+      [req.classId, label || null]
     );
+    const round = rows[0];
+    await emitRound(req.app.get('io'), req.classId, round);
+    return res.status(201).json(round);
+  } catch (err) {
+    if (err.code === '23505') { // partial unique index: one open round per class
+      return res.status(409).json({ error: 'A check is already running. End it before starting another.' });
+    }
+    console.error(err);
+    return res.status(500).json({ error: 'Server error.' });
+  }
+});
 
-    // Only professors render the tally, so only their room gets the update.
-    const tally = await getTally(req.classId);
-    req.app.get('io').to(`class:${req.classId}:professor`).emit('understand:update', tally);
-
-    return res.status(201).json({ message: 'Response recorded.', tally });
+// ── End a round (professor) ───────────────────────────────────────────────────
+router.patch('/understand/rounds/:roundId/end', requireAuth, requireProfessor, requireClassMember, async (req, res) => {
+  const { roundId } = req.params;
+  if (!/^\d+$/.test(roundId)) return res.status(404).json({ error: 'Round not found.' });
+  try {
+    const { rows } = await pool.query(
+      `UPDATE understand_rounds SET ended_at = NOW()
+       WHERE  id = $1 AND class_id = $2 AND ended_at IS NULL
+       RETURNING id, class_id, label, started_at, ended_at`,
+      [roundId, req.classId]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'No open round with that id.' });
+    const round = rows[0];
+    await emitRound(req.app.get('io'), req.classId, round);
+    return res.json(await roundSnapshot(round, req.classId, true));
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Server error.' });
   }
 });
 
-// ── Get understanding tally (professor only) ──────────────────────────────────
-router.get('/understand', requireAuth, requireProfessor, requireClassMember, async (req, res) => {
+// ── Rounds for a day (history) ────────────────────────────────────────────────
+router.get('/understand/rounds', requireAuth, requireClassMember, async (req, res) => {
+  const date = typeof req.query.date === 'string' ? req.query.date : null;
+  if (date !== null && !ISO_DATE.test(date)) {
+    return res.status(400).json({ error: 'date must be YYYY-MM-DD.' });
+  }
+  const isProfessor = req.user.role === 'professor';
   try {
-    return res.json(await getTally(req.classId));
+    const { rows } = await pool.query(
+      `SELECT r.id, r.label, r.started_at, r.ended_at,
+              COUNT(c.id)::int                                            AS responded,
+              COUNT(c.id) FILTER (WHERE c.response = 'thumbs_up')::int    AS thumbs_up,
+              COUNT(c.id) FILTER (WHERE c.response = 'hand')::int         AS hand,
+              COUNT(c.id) FILTER (WHERE c.response = 'thumbs_down')::int  AS thumbs_down
+       FROM   understand_rounds r
+       LEFT JOIN understand_checks c ON c.round_id = r.id
+       WHERE  r.class_id = $1
+         AND  r.started_at::date = COALESCE($2::date, CURRENT_DATE)
+         AND  ($3 OR r.ended_at IS NOT NULL)
+       GROUP  BY r.id
+       ORDER  BY r.started_at ASC`,
+      [req.classId, date, isProfessor]
+    );
+    return res.json(rows);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Server error.' });
+  }
+});
+
+// ── Vote in the open round (member) ───────────────────────────────────────────
+router.post('/understand', requireAuth, requireClassMember, async (req, res) => {
+  const { response } = req.body;
+  if (!VALID_RESPONSES.includes(response)) {
+    return res.status(400).json({ error: `response must be one of: ${VALID_RESPONSES.join(', ')}` });
+  }
+  try {
+    const round = await getOpenRound(req.classId);
+    if (!round) return res.status(409).json({ error: 'No check is running right now.' });
+
+    await pool.query(
+      `INSERT INTO understand_checks (round_id, class_id, user_id, response)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (round_id, user_id)
+       DO UPDATE SET response = EXCLUDED.response, checked_at = NOW()`,
+      [round.id, req.classId, req.user.id, response]
+    );
+
+    const { tally, responded } = await getTally(round.id);
+    const total_students = await countStudents(req.classId);
+    req.app.get('io').to(`class:${req.classId}:professor`)
+      .emit('understand:update', { round_id: round.id, tally, responded, total_students });
+
+    return res.status(201).json({ round_id: round.id, response });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Server error.' });
+  }
+});
+
+// ── Current state (member) ────────────────────────────────────────────────────
+router.get('/understand', requireAuth, requireClassMember, async (req, res) => {
+  try {
+    // Open round if any, else the most recent round started TODAY (so results
+    // stay visible for the rest of the session but never bleed into another day).
+    const { rows } = await pool.query(
+      `SELECT id, class_id, label, started_at, ended_at
+       FROM   understand_rounds
+       WHERE  class_id = $1
+         AND  (ended_at IS NULL OR started_at::date = CURRENT_DATE)
+       ORDER  BY (ended_at IS NULL) DESC, started_at DESC
+       LIMIT  1`,
+      [req.classId]
+    );
+    const round = rows[0] ?? null;
+    const snapshot = await roundSnapshot(round, req.classId, req.user.role === 'professor');
+
+    let my_response = null;
+    if (round) {
+      const { rows: mine } = await pool.query(
+        `SELECT response FROM understand_checks WHERE round_id = $1 AND user_id = $2`,
+        [round.id, req.user.id]
+      );
+      my_response = mine[0]?.response ?? null;
+    }
+    return res.json({ ...snapshot, my_response });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Server error.' });

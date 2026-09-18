@@ -9,6 +9,7 @@ import ViewLogs from "../components/classroom/ViewLogs";
 import CreateDiscussion from "../components/classroom/CreateDiscussion";
 import DiscussionFeed from "../components/classroom/discussion-board/DiscussionFeed";
 import AnonymousToggle from "../components/classroom/AnonymousToggle";
+import StudentQuestions from "../components/classroom/StudentQuestions";
 import { useAuth } from "../context/AuthContext";
 import { useClassRoom } from "../hooks/useClassRoom";
 
@@ -36,20 +37,31 @@ function ClassDashboard() {
 
         <div className="mx-auto flex flex-col justify-center items-center gap-4 w-full px-4 sm:px-6 lg:w-10/12 lg:px-0 pb-8 bg-white dark:bg-slate-800">
 
-          {/* Date navigator */}
-          <div className="w-full overflow-x-auto">
-            <ViewLogs date={viewDate} today={today} handleDate={handleDate} classId={classId} />
+          {/* Date navigator, with the professor's name toggle off to the side */}
+          <div className="w-full flex flex-wrap items-center justify-between gap-2">
+            <div className="overflow-x-auto">
+              <ViewLogs date={viewDate} today={today} handleDate={handleDate} classId={classId} />
+            </div>
+            {user?.role === "professor" && (
+              <div className="px-2 sm:px-3">
+                <AnonymousToggle showNames={showNames} setShowNames={setShowNames} />
+              </div>
+            )}
           </div>
 
           {/* Understanding check — full width on mobile */}
           <div className="w-full sm:w-3/4 max-w-2xl">
-            <UnderstandCheck classId={classId} />
+            <UnderstandCheck classId={classId} date={viewDate} />
+          </div>
+
+          {/* Student question box */}
+          <div className="w-full sm:w-3/4 max-w-2xl">
+            <StudentQuestions classId={classId} date={viewDate} showNames={showNames} />
           </div>
 
           {/* Professor controls */}
           {user?.role === "professor" && (
-            <div className="w-full sm:w-3/4 max-w-2xl flex flex-col sm:flex-row gap-3">
-              <AnonymousToggle showNames={showNames} setShowNames={setShowNames} />
+            <div className="w-full sm:w-3/4 max-w-2xl">
               <CreateDiscussion classRoomId={classId} />
             </div>
           )}

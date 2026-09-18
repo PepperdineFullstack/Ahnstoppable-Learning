@@ -15,6 +15,7 @@ import classRoutes from './routes/classes.js';
 import postRoutes from './routes/posts.js';
 import commentRoutes from './routes/comments.js';
 import classroomRoutes from './routes/classroom.js';
+import questionRoutes from './routes/questions.js';
 import registerSockets from './socket/index.js';
 
 // ── Boot-time config checks ──────────────────────────────────────────────────
@@ -49,6 +50,7 @@ app.use('/api/auth',                              authRoutes);
 app.use('/api/classes',                           classRoutes);
 app.use('/api/classes/:classId/posts',            postRoutes);
 app.use('/api/posts/:postId/comments',            commentRoutes);
+app.use('/api/classes/:classId/questions',        questionRoutes);
 app.use('/api/classes/:classId',                  classroomRoutes);
 
 // ── Health check ──────────────────────────────────────────────────────────────

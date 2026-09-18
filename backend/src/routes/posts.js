@@ -38,8 +38,8 @@ router.get('/', requireAuth, requireClassMember, async (req, res) => {
 });
 
 // ── Activity per day for a year ──────────────────────────────────────────────
-// Returns [{ date: 'YYYY-MM-DD', posts, comments }] for every day that has at
-// least one post. Comments are attributed to their post's day.
+// Returns [{ date: 'YYYY-MM-DD', posts, comments, questions }] for every day
+// with a post or a student question. Comments count toward their post's day.
 router.get('/dates', requireAuth, requireClassMember, async (req, res) => {
   const year = Number(req.query.year);
   if (!Number.isInteger(year) || year < 2000 || year > 2100) {
@@ -48,16 +48,23 @@ router.get('/dates', requireAuth, requireClassMember, async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      `SELECT p.post_date          AS date,
-              COUNT(DISTINCT p.id)::int AS posts,
-              COUNT(c.id)::int          AS comments
-       FROM   posts p
-       LEFT JOIN comments c ON c.post_id = p.id
-       WHERE  p.class_id = $1
-         AND  p.post_date >= make_date($2, 1, 1)
-         AND  p.post_date <  make_date($2 + 1, 1, 1)
-       GROUP  BY p.post_date
-       ORDER  BY p.post_date`,
+      `WITH post_days AS (
+         SELECT p.post_date AS date, COUNT(DISTINCT p.id)::int AS posts, COUNT(c.id)::int AS comments
+         FROM   posts p LEFT JOIN comments c ON c.post_id = p.id
+         WHERE  p.class_id = $1 AND p.post_date >= make_date($2, 1, 1) AND p.post_date < make_date($2 + 1, 1, 1)
+         GROUP  BY p.post_date
+       ), question_days AS (
+         SELECT asked_date AS date, COUNT(*)::int AS questions
+         FROM   questions
+         WHERE  class_id = $1 AND asked_date >= make_date($2, 1, 1) AND asked_date < make_date($2 + 1, 1, 1)
+         GROUP  BY asked_date
+       )
+       SELECT COALESCE(pd.date, qd.date)   AS date,
+              COALESCE(pd.posts, 0)        AS posts,
+              COALESCE(pd.comments, 0)     AS comments,
+              COALESCE(qd.questions, 0)    AS questions
+       FROM   post_days pd FULL OUTER JOIN question_days qd ON qd.date = pd.date
+       ORDER  BY 1`,
       [req.classId, year]
     );
     return res.json(rows);

@@ -1,45 +1,52 @@
 @import "tailwindcss";
 
-.default-photo {
-    border-radius: 15px;
-    padding: 5px;
-    width: 15vw;
-    aspect-ratio: 3 / 2;
-    object-fit: cover;
-    object-position: center;
-    min-width: 150px;
-}
-
-@layer components {
-  .std-text {
-    @apply text-slate-900 dark:text-white font-semibold;
-  }
-
-  .blue-btn {
-    @apply px-5 py-2.5 rounded-md font-semibold text-sm tracking-wide transition-all duration-200 cursor-pointer
-            text-white bg-blue-600 hover:bg-blue-700 active:scale-95 shadow-md flex items-center gap-2
-            disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none
-            disabled:hover:bg-blue-600 disabled:active:scale-100;
-  }
-  .white-btn {
-    @apply px-5 py-2.5 rounded-md font-semibold text-sm tracking-wide transition-all duration-200 cursor-pointer
-            text-black bg-white hover:bg-blue-100 active:scale-95 shadow-md flex items-center gap-2
-            disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none
-            disabled:hover:bg-white disabled:active:scale-100;
-  }
-  .emoji-btn {
-    @apply w-15 h-15 rounded-4xl text-slate-900 dark:text-white font-semibold text-center text-4xl duration-300 cursor-pointer transition-colors;
-  }
-  .background {
-    @apply bg-slate-50 dark:bg-slate-950;
-  }
-}
-
+/* ── Theme ─────────────────────────────────────────────────────────────────── */
 @theme {
-    /* index.html loads Nunito Sans from Google Fonts */
-    --font-sans: "Nunito Sans", ui-sans-serif, system-ui, sans-serif;
+  /* index.html loads Nunito Sans from Google Fonts */
+  --font-sans: "Nunito Sans", ui-sans-serif, system-ui, sans-serif;
 
-    /* Course-card tint (CourseList.jsx). Values from the original design. */
-    --color-olive-300: oklch(88% 0.011 106.6);
-    --color-olive-400: oklch(73.7% 0.021 106.9);
+  /* Course-card tint (CourseList.jsx) */
+  --color-olive-300: oklch(88% 0.011 106.6);
+  --color-olive-400: oklch(73.7% 0.021 106.9);
+}
+
+/* ── Custom utilities ──────────────────────────────────────────────────────────
+   Tailwind v4 registers these as first-class utilities, so they accept
+   variants (e.g. `sm:blue-btn`, `hover:std-text`) and sort with the rest. */
+
+@utility std-text {
+  @apply text-slate-900 dark:text-white font-semibold;
+}
+
+@utility background {
+  @apply bg-slate-50 dark:bg-slate-950;
+}
+
+@utility blue-btn {
+  @apply px-5 py-2.5 rounded-md font-semibold text-sm tracking-wide transition-all duration-200 cursor-pointer
+         text-white bg-blue-600 hover:bg-blue-700 active:scale-95 shadow-md flex items-center gap-2
+         disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none
+         disabled:hover:bg-blue-600 disabled:active:scale-100;
+}
+
+@utility white-btn {
+  @apply px-5 py-2.5 rounded-md font-semibold text-sm tracking-wide transition-all duration-200 cursor-pointer
+         text-black bg-white hover:bg-blue-100 active:scale-95 shadow-md flex items-center gap-2
+         disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none
+         disabled:hover:bg-white disabled:active:scale-100;
+}
+
+@utility emoji-btn {
+  @apply w-15 h-15 rounded-4xl text-slate-900 dark:text-white font-semibold text-center text-4xl
+         duration-300 cursor-pointer transition-colors;
+}
+
+@utility default-photo {
+  border-radius: 15px;
+  padding: 5px;
+  width: 15vw;
+  min-width: 150px;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  object-position: center;
 }

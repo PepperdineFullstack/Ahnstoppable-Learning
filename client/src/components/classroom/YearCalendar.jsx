@@ -22,9 +22,11 @@ function toKey(year, month, day) {
 
 function activityLabel(a) {
   if (!a) return "";
-  const p = `${a.posts} post${a.posts === 1 ? "" : "s"}`;
-  const c = `${a.comments} comment${a.comments === 1 ? "" : "s"}`;
-  return `${p} · ${c}`;
+  const parts = [];
+  if (a.posts)     parts.push(`${a.posts} post${a.posts === 1 ? "" : "s"}`);
+  if (a.comments)  parts.push(`${a.comments} comment${a.comments === 1 ? "" : "s"}`);
+  if (a.questions) parts.push(`${a.questions} question${a.questions === 1 ? "" : "s"}`);
+  return parts.join(" · ");
 }
 
 function MonthGrid({ year, month, selected, today, activity, onSelect }) {
