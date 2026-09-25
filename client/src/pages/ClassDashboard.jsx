@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { useParams } from "react-router-dom";
 
 import UnderstandCheck from "../components/classroom/UnderstandCheck";
+import ClassPolls from "../components/classroom/ClassPolls";
 import TalentBoard from "../components/classroom/TalentBoard";
 import Header from "../components/ui/Header";
 import ViewLogs from "../components/classroom/ViewLogs";
@@ -20,7 +21,7 @@ function ClassDashboard() {
   const [showNames, setShowNames] = useState(user?.role === 'professor');
 
   // Connects the shared socket and joins this class's room; child components
-  // (DiscussionFeed, UnderstandCheck) only subscribe to events.
+  // (DiscussionFeed, UnderstandCheck, ClassPolls) only subscribe to events.
   useClassRoom(classId);
 
   const today = new Date().toLocaleDateString("en-CA");
@@ -52,6 +53,11 @@ function ClassDashboard() {
           {/* Understanding check — full width on mobile */}
           <div className="w-full sm:w-3/4 max-w-2xl">
             <UnderstandCheck classId={classId} date={viewDate} />
+          </div>
+
+          {/* Live poll */}
+          <div className="w-full sm:w-3/4 max-w-2xl">
+            <ClassPolls classId={classId} date={viewDate} />
           </div>
 
           {/* Student question box */}

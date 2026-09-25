@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import PhotoHeader from "../components/ui/PhotoHeader";
+import SiteTagline from "../components/ui/SiteTagline";
 
 function Register() {
   const navigate        = useNavigate();
@@ -57,6 +58,7 @@ function Register() {
 
   return (
     <div className="bg-gray-50 dark:bg-slate-950 min-h-screen">
+      <SiteTagline />
       <div className="min-h-screen flex flex-row gap-6 items-center justify-center py-6 px-4 transition-colors duration-300">
 
         {/* Register card */}

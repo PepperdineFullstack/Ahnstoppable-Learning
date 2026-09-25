@@ -1,6 +1,6 @@
 // src/components/ui/SiteTagline.jsx
-// Slim brand strip rendered once in App.jsx, so it sits at the very top of
-// every page (sign-in and register included).
+// Slim brand strip at the top of the sign-in and register pages. Signed-in
+// pages show the same tagline inside Header instead.
 import React from "react";
 
 function SiteTagline() {
