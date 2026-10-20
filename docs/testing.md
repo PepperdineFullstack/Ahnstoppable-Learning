@@ -9,8 +9,15 @@ signed in as a professor and as students, the way people actually use it.
 |---|---|
 | `student.spec.js` | First-time sign-in creates a password. A student posts a comment, replies to a classmate, answers an understanding check, and votes in a poll (and changes the vote). Students never see who voted. |
 | `professor.spec.js` | The professor comments and replies (students see it live, with the professor's name), runs an understanding check and watches answers arrive, creates a poll and sees who voted live, and "View as student" shows the student layout without sending anything. |
+| `question-replies.spec.js` | Under the professor's answer in the Questions card, a student replies (shown as "You" to them, "Anonymous" to classmates, with their name to the professor, all live), the professor replies back, and replies survive a reload. Replying before the question is answered is refused. |
+| `questions-actions.spec.js` | Edit, delete and thumbs up across the Questions card: students on their own questions and replies (live for classmates, "(edited)" shown), the professor editing/removing answers (replies go with a removed answer) and deleting any question, and the server refusing edits/deletes on other people's posts. |
 | `questions.spec.js` | A student whose browser formats dates as M/D/YYYY still sees the right day and can ask questions. Unreadable or wrong dates are filed under today. Rejected questions don't count toward the limit, and the 6th real question in a minute is blocked. The professor's discussion post shows no time. |
 | `results.spec.js` | The Results page lists every poll and understanding check with who answered what, and both CSV downloads contain the answers. Students can't open it. |
+| `threads.spec.js` | Students can keep replying in a thread; the reply box opens right under whatever was clicked (the comment, or a reply). The comment box grows with the text, shrinks back, and takes up to 1000 characters (the server enforces the same limit). The class page shows the class name for the professor ("You're teaching") and students, and in the browser tab. |
+| `summary.spec.js` | The professor's AI summary of a day's questions: created on demand, saved and shown again without another AI call, Refresh after new questions, friendly errors when the AI declines or is busy, no student names sent to the AI, and students can't see or create summaries. Uses a fake Claude API (`e2e/fake-anthropic.js`), so there's no API key or cost. |
+| `edit-delete.spec.js` | A student edits and deletes their own comment and reply (shown as "You", marked "(edited)", updated and removed live for classmates, participation points taken back on delete). Students can't edit or delete others' comments and still don't learn who wrote them; the professor can delete any comment but can't edit a student's words; edit length is validated. |
+| `hardening.spec.js` | Only the class's own professor sees student names or can run the class (another professor who is merely a member can't), and join-by-code is gone. Students get 404 on comments of a post planned for a future day. Bad or oversized ids are 404s, not server errors. A refused reply shows its error inside the reply box and keeps the text; the box and its draft survive "Hide replies". After a dropped connection, replies and deletions made meanwhile appear without a reload. A double-clicked like ends in the same state a reload shows. |
+| `likes.spec.js` | Liking comments and replies: one like per person (liking twice counts once), counts update live for classmates, unliking works, and both counts and your own heart survive a reload. Who liked is never sent. |
 | `planning.spec.js` | The professor plans a future day (discussion, poll and check) and students can't see or reach any of it. Polls and checks prepared for today stay hidden until the professor clicks Start. The app uses the class timezone even though the database runs in UTC. |
 | `sessions.spec.js` | Two accounts in tabs of one browser: signing in or out in one tab switches the other tabs too. This guards against the "Only students can vote." bug. |
 
@@ -39,4 +46,6 @@ npm test
   stop them afterwards, so they don't clash with anything already running.
 - Like production, the test database runs in UTC while the app runs with
   `APP_TIMEZONE=America/Los_Angeles`, and the browser uses that timezone too.
+- The AI summary talks to `e2e/fake-anthropic.js` on port 4320 instead of the real
+  Claude API, through the real Anthropic SDK.
 - Rate limits stay switched on, exactly as in production.

@@ -1,5 +1,5 @@
 // src/components/Dashboards/ClassDashboard.jsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import UnderstandCheck from "../components/classroom/UnderstandCheck";
@@ -14,6 +14,7 @@ import StudentQuestions from "../components/classroom/StudentQuestions";
 import { useAuth } from "../context/AuthContext";
 import { ClassViewContext } from "../context/ClassViewContext";
 import { useClassRoom } from "../hooks/useClassRoom";
+import api from "../api/axios";
 import { todayKey } from "../utils/dates";
 
 function ClassDashboard() {
@@ -26,6 +27,24 @@ function ClassDashboard() {
   const isRealProfessor = user?.role === "professor";
   const isProfessorView = isRealProfessor && !preview;
   const namesVisible    = showNames && !preview;   // students see classmates as Anonymous
+
+  // Which class this is, shown at the top of the page and in the browser tab.
+  const [cls, setCls] = useState(null);
+  useEffect(() => {
+    let ignore = false;
+    setCls(null);
+    api.get(`/api/classes/${classId}`)
+      .then((res) => { if (!ignore) setCls(res.data); })
+      .catch((err) => console.error("Failed to load class:", err));
+    return () => { ignore = true; };
+  }, [classId]);
+  const classLabel = cls ? (cls.section ? `${cls.title} · ${cls.section}` : cls.title) : "";
+  useEffect(() => {
+    if (!classLabel) return;
+    const previous = document.title;
+    document.title = `${classLabel} · Ahnstoppable Learning`;
+    return () => { document.title = previous; };
+  }, [classLabel]);
 
   // Connects the shared socket and joins this class's room; child components
   // (DiscussionFeed, UnderstandCheck, ClassPolls) only subscribe to events.
@@ -59,6 +78,19 @@ function ClassDashboard() {
       <main className="w-full">
 
         <div className="mx-auto flex flex-col justify-center items-center gap-4 w-full px-4 sm:px-6 lg:w-10/12 lg:px-0 pb-8 bg-white dark:bg-slate-800">
+
+          {/* Which class this is */}
+          <div className="w-full px-2 sm:px-3 pt-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+              {isRealProfessor ? "You're teaching" : "Class"}
+            </p>
+            <h1 className="std-text text-2xl sm:text-3xl" data-testid="class-name">
+              {classLabel || "\u00a0"}
+            </h1>
+            {cls?.professor_name && !isRealProfessor && (
+              <p className="text-sm text-slate-500 dark:text-slate-400">{cls.professor_name}</p>
+            )}
+          </div>
 
           {/* Date navigator, with the professor's name toggle off to the side */}
           <div className="w-full flex flex-wrap items-center justify-between gap-2">

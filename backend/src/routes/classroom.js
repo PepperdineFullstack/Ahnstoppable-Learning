@@ -19,14 +19,13 @@
 
 import express from 'express';
 import pool from '../db/pool.js';
-import { requireAuth, requireProfessor, requireClassMember } from '../middleware/auth.js';
+import { requireAuth, requireProfessor, requireClassMember, requireClassOwner, isId } from '../middleware/auth.js';
 import { ISO_DATE, dayStatus, longDay } from '../utils/days.js';
 
 const router = express.Router({ mergeParams: true });
 
 const VALID_RESPONSES = ['thumbs_up', 'hand', 'thumbs_down'];
 const ROUND_COLS = 'id, class_id, label, scheduled_for, started_at, ended_at';
-const NUMERIC = /^\d+$/;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 async function getTally(roundId) {
@@ -81,7 +80,7 @@ function emitPrepared(io, classId, date) {
 }
 
 // ── Start a round now, or prepare one (professor) ────────────────────────────
-router.post('/understand/rounds', requireAuth, requireProfessor, requireClassMember, async (req, res) => {
+router.post('/understand/rounds', requireAuth, requireProfessor, requireClassMember, requireClassOwner, async (req, res) => {
   const label = typeof req.body.label === 'string' ? req.body.label.trim().slice(0, 120) : null;
   const date  = req.body.scheduled_for ?? null;
   if (date !== null && !ISO_DATE.test(String(date))) {
@@ -112,9 +111,9 @@ router.post('/understand/rounds', requireAuth, requireProfessor, requireClassMem
 });
 
 // ── End a round (professor) ───────────────────────────────────────────────────
-router.patch('/understand/rounds/:roundId/end', requireAuth, requireProfessor, requireClassMember, async (req, res) => {
+router.patch('/understand/rounds/:roundId/end', requireAuth, requireProfessor, requireClassMember, requireClassOwner, async (req, res) => {
   const { roundId } = req.params;
-  if (!/^\d+$/.test(roundId)) return res.status(404).json({ error: 'Round not found.' });
+  if (!isId(roundId)) return res.status(404).json({ error: 'Round not found.' });
   try {
     const { rows } = await pool.query(
       `UPDATE understand_rounds SET ended_at = NOW()
@@ -133,9 +132,9 @@ router.patch('/understand/rounds/:roundId/end', requireAuth, requireProfessor, r
 });
 
 // ── Start a prepared round (professor) ───────────────────────────────────────
-router.post('/understand/rounds/:roundId/start', requireAuth, requireProfessor, requireClassMember, async (req, res) => {
+router.post('/understand/rounds/:roundId/start', requireAuth, requireProfessor, requireClassMember, requireClassOwner, async (req, res) => {
   const { roundId } = req.params;
-  if (!NUMERIC.test(roundId)) return res.status(404).json({ error: 'Round not found.' });
+  if (!isId(roundId)) return res.status(404).json({ error: 'Round not found.' });
   try {
     const { rows: [existing] } = await pool.query(
       `SELECT ${ROUND_COLS} FROM understand_rounds WHERE id = $1 AND class_id = $2`, [roundId, req.classId]
@@ -165,9 +164,9 @@ router.post('/understand/rounds/:roundId/start', requireAuth, requireProfessor, 
 });
 
 // ── Delete a prepared round (professor) ──────────────────────────────────────
-router.delete('/understand/rounds/:roundId', requireAuth, requireProfessor, requireClassMember, async (req, res) => {
+router.delete('/understand/rounds/:roundId', requireAuth, requireProfessor, requireClassMember, requireClassOwner, async (req, res) => {
   const { roundId } = req.params;
-  if (!NUMERIC.test(roundId)) return res.status(404).json({ error: 'Round not found.' });
+  if (!isId(roundId)) return res.status(404).json({ error: 'Round not found.' });
   try {
     const { rows } = await pool.query(
       `DELETE FROM understand_rounds WHERE id = $1 AND class_id = $2 AND started_at IS NULL RETURNING scheduled_for`,
@@ -192,7 +191,7 @@ router.get('/understand/rounds', requireAuth, requireClassMember, async (req, re
   if (date !== null && !ISO_DATE.test(date)) {
     return res.status(400).json({ error: 'date must be YYYY-MM-DD.' });
   }
-  const isProfessor = req.user.role === 'professor';
+  const isProfessor = req.isClassOwner;
   try {
     const { rows } = await pool.query(
       `SELECT r.id, r.label, r.scheduled_for, r.started_at, r.ended_at,
@@ -218,7 +217,7 @@ router.get('/understand/rounds', requireAuth, requireClassMember, async (req, re
 });
 
 // ── Every round, all dates (professor Results page) ─────────────────────────
-router.get('/understand/history', requireAuth, requireProfessor, requireClassMember, async (req, res) => {
+router.get('/understand/history', requireAuth, requireProfessor, requireClassMember, requireClassOwner, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT r.id, r.label, r.started_at, r.ended_at,
@@ -288,7 +287,7 @@ router.get('/understand', requireAuth, requireClassMember, async (req, res) => {
       [req.classId]
     );
     const round = rows[0] ?? null;
-    const snapshot = await roundSnapshot(round, req.classId, req.user.role === 'professor');
+    const snapshot = await roundSnapshot(round, req.classId, req.isClassOwner);
 
     let my_response = null;
     if (round) {

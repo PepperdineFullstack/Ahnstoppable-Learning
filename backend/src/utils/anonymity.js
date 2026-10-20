@@ -1,6 +1,7 @@
 // src/utils/anonymity.js
 // Students must never learn who wrote a student-authored comment or reply.
-// Professors always see real names; professor-authored rows are never masked.
+// Only the class's own professor sees real names (req.isClassOwner, set by
+// requireClassMember*); professor-authored rows are never masked.
 
 // Strip author identity from a student-authored row (and its nested replies).
 export function maskForStudent(row) {
@@ -14,5 +15,5 @@ export function maskForStudent(row) {
 
 // Shape a row for the requesting user.
 export function forRequester(req, row) {
-  return req.user.role === 'professor' ? row : maskForStudent(row);
+  return req.isClassOwner === true ? row : maskForStudent(row);
 }

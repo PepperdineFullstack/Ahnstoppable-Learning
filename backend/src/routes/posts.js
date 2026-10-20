@@ -9,7 +9,7 @@
 
 import express from 'express';
 import pool from '../db/pool.js';
-import { requireAuth, requireProfessor, requireClassMember } from '../middleware/auth.js';
+import { requireAuth, requireProfessor, requireClassMember, requireClassOwner, isId } from '../middleware/auth.js';
 import { emitToClass } from '../socket/emit.js';
 import { dayStatus } from '../utils/days.js';
 
@@ -33,7 +33,7 @@ router.get('/', requireAuth, requireClassMember, async (req, res) => {
        WHERE  p.class_id = $1 AND p.post_date = COALESCE($2::date, CURRENT_DATE)
          AND  ($3 OR p.post_date <= CURRENT_DATE)
        ORDER  BY p.created_at ASC`,
-      [req.classId, date, req.user.role === 'professor']
+      [req.classId, date, req.isClassOwner]
     );
     return res.json(rows);
   } catch (err) {
@@ -89,7 +89,7 @@ router.get('/dates', requireAuth, requireClassMember, async (req, res) => {
        ) t
        GROUP  BY date
        ORDER  BY date`,
-      [req.classId, year, req.user.role === 'professor']
+      [req.classId, year, req.isClassOwner]
     );
     return res.json(rows);
   } catch (err) {
@@ -99,7 +99,7 @@ router.get('/dates', requireAuth, requireClassMember, async (req, res) => {
 });
 
 // ── Create a post (professor only) ───────────────────────────────────────────
-router.post('/', requireAuth, requireProfessor, requireClassMember, async (req, res) => {
+router.post('/', requireAuth, requireProfessor, requireClassMember, requireClassOwner, async (req, res) => {
   const { title, content, post_date } = req.body;
 
   if (!title || !content) {
@@ -140,8 +140,9 @@ router.post('/', requireAuth, requireProfessor, requireClassMember, async (req, 
 });
 
 // ── Delete a post ─────────────────────────────────────────────────────────────
-router.delete('/:postId', requireAuth, requireProfessor, requireClassMember, async (req, res) => {
+router.delete('/:postId', requireAuth, requireProfessor, requireClassMember, requireClassOwner, async (req, res) => {
   const { postId } = req.params;
+  if (!isId(postId)) return res.status(404).json({ error: 'Post not found.' });
   try {
     const { rowCount } = await pool.query(
       `DELETE FROM posts WHERE id = $1 AND class_id = $2 AND author_id = $3`,

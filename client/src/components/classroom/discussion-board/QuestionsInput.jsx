@@ -1,5 +1,8 @@
 // src/components/classroom/discussion-board/QuestionsInput.jsx
 import React, { useState } from "react";
+import AutoGrowTextarea from "../../ui/AutoGrowTextarea";
+
+const MAX_LEN = 1000;   // same limit as the server
 
 function QuestionsInput({ addItem = () => {}, disabled = false }) {
   const [inputText, setInputText] = useState("");
@@ -8,36 +11,37 @@ function QuestionsInput({ addItem = () => {}, disabled = false }) {
     setInputText(event.target.value);
   }
 
-  function handlePost() {
+  // Clear only once the comment was saved, so a rejected one keeps its text.
+  async function handlePost() {
     if (!inputText.trim() || disabled) return;
-    addItem(inputText);
-    setInputText("");
+    const ok = await addItem(inputText);
+    if (ok !== false) setInputText("");
   }
 
   return (
     <div className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-all duration-300">
       <div className="p-1">
-        <textarea
+        <AutoGrowTextarea
           name="questions-input"
           aria-label="Write a comment"
-          rows="3"
-          className="w-full p-4 std-text bg-transparent outline-none resize-none placeholder-slate-400 dark:placeholder-slate-500 font-medium"
+          minRows={4}
+          className="w-full p-4 std-text bg-transparent outline-none placeholder-slate-400 dark:placeholder-slate-500 font-medium"
           onChange={handleChange}
           placeholder="Post any questions here:"
           value={inputText}
-          maxLength={125}
+          maxLength={MAX_LEN}
         />
       </div>
 
       <div className="flex items-center justify-between px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800">
         <span
           className={`text-xs font-medium ${
-            inputText.length >= 110
+            inputText.length >= MAX_LEN - 100
               ? "text-orange-500"
               : "text-slate-500 dark:text-slate-400"
           }`}
         >
-          {inputText.length} / 125
+          {inputText.length} / {MAX_LEN}
         </span>
 
         <button

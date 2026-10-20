@@ -52,7 +52,8 @@ CREATE TABLE comments (
     post_id     INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
     author_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     content     TEXT NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    edited_at   TIMESTAMPTZ                             -- set when the author edits it
 );
  
 -- Replies to comments
@@ -61,7 +62,8 @@ CREATE TABLE replies (
     comment_id  INTEGER NOT NULL REFERENCES comments(id) ON DELETE CASCADE,
     author_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     content     TEXT NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    edited_at   TIMESTAMPTZ                             -- set when the author edits it
 );
  
 -- Standing student questions (asked any time, independent of posts)
@@ -73,7 +75,9 @@ CREATE TABLE questions (
     answer      TEXT,                                   -- professor's written answer
     answered_at TIMESTAMPTZ,
     asked_date  DATE NOT NULL DEFAULT CURRENT_DATE,     -- day-by-day view, like posts.post_date
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    edited_at        TIMESTAMPTZ,                       -- the asker edited the question
+    answer_edited_at TIMESTAMPTZ                        -- the professor edited the answer
 );
 
 -- Understanding-check rounds (professor starts / ends one during class, or
@@ -131,6 +135,63 @@ CREATE TABLE poll_votes (
     FOREIGN KEY (poll_id, option_id) REFERENCES poll_options(poll_id, id) ON DELETE CASCADE
 );
 
+-- AI summaries of a class day's student questions (professor only, on demand)
+CREATE TABLE question_summaries (
+    id             SERIAL PRIMARY KEY,
+    class_id       INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    summary_date   DATE NOT NULL,
+    summary        JSONB NOT NULL,                      -- structured result (overview, themes, …)
+    question_count INTEGER NOT NULL,                    -- how many questions it covered
+    model          TEXT NOT NULL,                       -- model that produced it
+    created_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (class_id, summary_date)
+);
+
+-- Follow-up replies under an answered question (students and the professor)
+CREATE TABLE question_replies (
+    id          SERIAL PRIMARY KEY,
+    question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+    author_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content     TEXT NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    edited_at   TIMESTAMPTZ
+);
+
+-- Likes on discussion comments and replies (one per person; only counts are shown)
+CREATE TABLE comment_likes (
+    comment_id INTEGER NOT NULL REFERENCES comments(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (comment_id, user_id)
+);
+CREATE TABLE reply_likes (
+    reply_id   INTEGER NOT NULL REFERENCES replies(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (reply_id, user_id)
+);
+
+-- Thumbs-up on questions, answers and replies in the Questions card
+CREATE TABLE question_likes (
+    question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (question_id, user_id)
+);
+CREATE TABLE answer_likes (
+    question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (question_id, user_id)
+);
+CREATE TABLE question_reply_likes (
+    reply_id   INTEGER NOT NULL REFERENCES question_replies(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (reply_id, user_id)
+);
+
 -- Indexes for common query patterns
 CREATE INDEX idx_posts_class_date   ON posts(class_id, post_date);
 CREATE INDEX idx_comments_post      ON comments(post_id);
@@ -145,3 +206,4 @@ CREATE INDEX idx_polls_class_day ON polls(class_id, scheduled_for);
 CREATE INDEX idx_polls_class_created ON polls(class_id, created_at);
 CREATE INDEX idx_poll_options_poll   ON poll_options(poll_id, position);
 CREATE INDEX idx_poll_votes_poll     ON poll_votes(poll_id);
+CREATE INDEX idx_question_replies_question ON question_replies(question_id, created_at);

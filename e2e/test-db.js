@@ -16,6 +16,7 @@ export const APP_TIMEZONE = 'America/Los_Angeles';
 
 export const API_PORT = 4310;
 export const WEB_PORT = 5310;
+export const FAKE_ANTHROPIC_PORT = 4320;   // fake Claude API (fake-anthropic.js)
 
 function readBackendEnv() {
   const file = path.join(BACKEND_DIR, '.env');

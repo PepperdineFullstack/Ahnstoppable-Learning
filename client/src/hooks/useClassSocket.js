@@ -29,6 +29,8 @@ export function useClassSocket({ classId, setPosts, date }) {
       setPosts((prev) =>
         prev.map((post) => {
           if (post.id !== comment.post_id) return post;
+          // Our own post may already be here from the POST response.
+          if ((post.comments ?? []).some((c) => c.id === comment.id)) return post;
           return { ...post, comments: [...(post.comments ?? []), comment] };
         })
       );
@@ -50,6 +52,7 @@ export function useClassSocket({ classId, setPosts, date }) {
           ...post,
           comments: (post.comments ?? []).map((comment) => {
             if (comment.id !== reply.comment_id) return comment;
+            if ((comment.replies ?? []).some((r) => r.id === reply.id)) return comment;
             return { ...comment, replies: [...(comment.replies ?? []), reply] };
           }),
         }))
@@ -68,6 +71,55 @@ export function useClassSocket({ classId, setPosts, date }) {
       );
     };
 
+    // ── Edits ────────────────────────────────────────────────────────────────
+    const onCommentUpdated = ({ commentId, postId, content, edited_at }) => {
+      setPosts((prev) =>
+        prev.map((post) => {
+          if (post.id !== postId) return post;
+          return {
+            ...post,
+            comments: (post.comments ?? []).map((c) => (c.id === commentId ? { ...c, content, edited_at } : c)),
+          };
+        })
+      );
+    };
+
+    const onReplyUpdated = ({ replyId, commentId, content, edited_at }) => {
+      setPosts((prev) =>
+        prev.map((post) => ({
+          ...post,
+          comments: (post.comments ?? []).map((comment) => {
+            if (comment.id !== commentId) return comment;
+            return {
+              ...comment,
+              replies: (comment.replies ?? []).map((r) => (r.id === replyId ? { ...r, content, edited_at } : r)),
+            };
+          }),
+        }))
+      );
+    };
+
+    // ── Like counts (who liked is never sent; our own liked_by_me stays as is) ─
+    const onCommentLikes = ({ commentId, postId, like_count }) => {
+      setPosts((prev) =>
+        prev.map((post) => (post.id !== postId ? post : {
+          ...post,
+          comments: (post.comments ?? []).map((c) => (c.id === commentId ? { ...c, like_count } : c)),
+        }))
+      );
+    };
+    const onReplyLikes = ({ replyId, commentId, like_count }) => {
+      setPosts((prev) =>
+        prev.map((post) => ({
+          ...post,
+          comments: (post.comments ?? []).map((c) => (c.id !== commentId ? c : {
+            ...c,
+            replies: (c.replies ?? []).map((r) => (r.id === replyId ? { ...r, like_count } : r)),
+          })),
+        }))
+      );
+    };
+
     const handlers = [
       ['post:new',        onPostNew],
       ['post:deleted',    onPostDeleted],
@@ -75,6 +127,10 @@ export function useClassSocket({ classId, setPosts, date }) {
       ['comment:deleted', onCommentDeleted],
       ['reply:new',       onReplyNew],
       ['reply:deleted',   onReplyDeleted],
+      ['comment:updated', onCommentUpdated],
+      ['reply:updated',   onReplyUpdated],
+      ['comment:likes',   onCommentLikes],
+      ['reply:likes',     onReplyLikes],
     ];
     for (const [event, fn] of handlers) socket.on(event, fn);
 

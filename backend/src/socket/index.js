@@ -7,12 +7,16 @@
 //   3. Client joins a class by emitting joinClass({ classId }). After a
 //      membership check the socket is placed in two rooms:
 //        class:<id>          – everyone (used for delete events, which carry only IDs)
-//        class:<id>:<role>   – 'professor' or 'student' (used by emitToClass so
-//                              students receive masked payloads)
+//        class:<id>:<role>   – 'professor' (the class's own professor only) or
+//                              'student' (everyone else), used by emitToClass
+//                              so only the owner receives unmasked payloads
 //   4. REST handlers broadcast via socket/emit.js.
 
-import jwt from 'jsonwebtoken';
-import { isClassMember } from '../middleware/auth.js';
+import { classAccess, isId, verifyToken } from '../middleware/auth.js';
+
+// Each joinClass runs a DB query, so cap how often one socket may send it.
+const JOIN_WINDOW_MS = 10 * 1000;
+const JOINS_PER_WINDOW = 5;
 
 export default function registerSocketHandlers(io) {
   // ── Auth middleware ──────────────────────────────────────────────────────────
@@ -21,8 +25,8 @@ export default function registerSocketHandlers(io) {
     if (!token) return next(new Error('Authentication required.'));
 
     try {
-      const payload = jwt.verify(token, process.env.JWT_SECRET);
-      socket.user = payload; // { id, email, name, role }
+      socket.user = verifyToken(token); // { id, email, name, role }
+      socket.data.user = socket.user;   // also visible to fetchSockets()
       next();
     } catch {
       next(new Error('Invalid or expired token.'));
@@ -32,12 +36,20 @@ export default function registerSocketHandlers(io) {
   // ── Connection handler ───────────────────────────────────────────────────────
   io.on('connection', (socket) => {
     console.log(`[socket] user ${socket.user.id} connected (${socket.id})`);
+    let recentJoins = [];
 
     socket.on('joinClass', async ({ classId } = {}) => {
-      if (!/^\d+$/.test(String(classId))) return;
+      if (!isId(classId)) return;
 
+      const now = Date.now();
+      recentJoins = recentJoins.filter((t) => now - t < JOIN_WINDOW_MS);
+      if (recentJoins.length >= JOINS_PER_WINDOW) return;
+      recentJoins.push(now);
+
+      let access;
       try {
-        if (!(await isClassMember(socket.user.id, classId))) {
+        access = await classAccess(socket.user.id, Number(classId));
+        if (!access) {
           socket.emit('error', 'You are not enrolled in this class.');
           return;
         }
@@ -54,14 +66,16 @@ export default function registerSocketHandlers(io) {
         }
       }
 
-      socket.join([`class:${classId}`, `class:${classId}:${socket.user.role}`]);
+      const roleRoom = access.isOwner ? 'professor' : 'student';
+      socket.join([`class:${classId}`, `class:${classId}:${roleRoom}`]);
       console.log(`[socket] user ${socket.user.id} joined class:${classId}`);
       socket.emit('joinedClass', { classId });
     });
 
     socket.on('leaveClass', ({ classId } = {}) => {
       socket.leave(`class:${classId}`);
-      socket.leave(`class:${classId}:${socket.user.role}`);
+      socket.leave(`class:${classId}:professor`);
+      socket.leave(`class:${classId}:student`);
     });
 
     socket.on('disconnect', () => {

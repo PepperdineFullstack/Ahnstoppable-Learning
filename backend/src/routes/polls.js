@@ -20,12 +20,11 @@
 
 import express from 'express';
 import pool from '../db/pool.js';
-import { requireAuth, requireProfessor, requireClassMember } from '../middleware/auth.js';
+import { requireAuth, requireProfessor, requireClassMember, requireClassOwner, isId } from '../middleware/auth.js';
 import { ISO_DATE, dayStatus, longDay } from '../utils/days.js';
 
 const router = express.Router({ mergeParams: true });
 
-const NUMERIC      = /^\d+$/;
 const MAX_QUESTION = 300;
 const MAX_OPTION   = 100;
 const MIN_OPTIONS  = 2;
@@ -106,7 +105,7 @@ function emitPrepared(io, classId, date) {
 }
 
 // ── Start a poll now, or prepare one (professor) ─────────────────────────────
-router.post('/', requireAuth, requireProfessor, requireClassMember, async (req, res) => {
+router.post('/', requireAuth, requireProfessor, requireClassMember, requireClassOwner, async (req, res) => {
   const question = typeof req.body.question === 'string' ? req.body.question.trim() : '';
   const raw      = req.body.options;
   const date     = req.body.scheduled_for ?? null;
@@ -175,9 +174,9 @@ router.post('/', requireAuth, requireProfessor, requireClassMember, async (req, 
 });
 
 // ── Close a poll (professor) ──────────────────────────────────────────────────
-router.patch('/:pollId/close', requireAuth, requireProfessor, requireClassMember, async (req, res) => {
+router.patch('/:pollId/close', requireAuth, requireProfessor, requireClassMember, requireClassOwner, async (req, res) => {
   const { pollId } = req.params;
-  if (!NUMERIC.test(pollId)) return res.status(404).json({ error: 'Poll not found.' });
+  if (!isId(pollId)) return res.status(404).json({ error: 'Poll not found.' });
   try {
     const { rowCount } = await pool.query(
       `UPDATE polls SET closed_at = NOW()
@@ -195,9 +194,9 @@ router.patch('/:pollId/close', requireAuth, requireProfessor, requireClassMember
 });
 
 // ── Start a prepared poll (professor) ────────────────────────────────────────
-router.post('/:pollId/start', requireAuth, requireProfessor, requireClassMember, async (req, res) => {
+router.post('/:pollId/start', requireAuth, requireProfessor, requireClassMember, requireClassOwner, async (req, res) => {
   const { pollId } = req.params;
-  if (!NUMERIC.test(pollId)) return res.status(404).json({ error: 'Poll not found.' });
+  if (!isId(pollId)) return res.status(404).json({ error: 'Poll not found.' });
   try {
     const existing = await getPollById(pollId, req.classId);
     if (!existing) return res.status(404).json({ error: 'Poll not found.' });
@@ -225,9 +224,9 @@ router.post('/:pollId/start', requireAuth, requireProfessor, requireClassMember,
 });
 
 // ── Delete a prepared poll (professor) ───────────────────────────────────────
-router.delete('/:pollId', requireAuth, requireProfessor, requireClassMember, async (req, res) => {
+router.delete('/:pollId', requireAuth, requireProfessor, requireClassMember, requireClassOwner, async (req, res) => {
   const { pollId } = req.params;
-  if (!NUMERIC.test(pollId)) return res.status(404).json({ error: 'Poll not found.' });
+  if (!isId(pollId)) return res.status(404).json({ error: 'Poll not found.' });
   try {
     const { rows } = await pool.query(
       `DELETE FROM polls WHERE id = $1 AND class_id = $2 AND opened_at IS NULL RETURNING scheduled_for`,
@@ -258,7 +257,7 @@ router.get('/current', requireAuth, requireClassMember, async (req, res) => {
       'ORDER BY (p.closed_at IS NULL) DESC, p.opened_at DESC LIMIT 1'
     );
     const poll = rows[0] ?? null;
-    const snapshot = await pollSnapshot(poll, req.classId, req.user.role === 'professor');
+    const snapshot = await pollSnapshot(poll, req.classId, req.isClassOwner);
 
     let my_option_id = null;
     if (poll) {
@@ -277,7 +276,7 @@ router.get('/current', requireAuth, requireClassMember, async (req, res) => {
 
 // ── Every poll, all dates (professor Results page) ───────────────────────────
 // Declared before the /:pollId routes so "history" is never read as an id.
-router.get('/history', requireAuth, requireProfessor, requireClassMember, async (req, res) => {
+router.get('/history', requireAuth, requireProfessor, requireClassMember, requireClassOwner, async (req, res) => {
   try {
     const polls = await selectPolls('p.class_id = $1 AND p.opened_at IS NOT NULL', [req.classId], 'ORDER BY p.opened_at DESC');
     const total = await countStudents(req.classId);
@@ -292,7 +291,7 @@ router.get('/history', requireAuth, requireProfessor, requireClassMember, async 
 // ── Vote (student) ────────────────────────────────────────────────────────────
 router.post('/:pollId/votes', requireAuth, requireClassMember, async (req, res) => {
   const { pollId } = req.params;
-  if (!NUMERIC.test(pollId)) return res.status(404).json({ error: 'Poll not found.' });
+  if (!isId(pollId)) return res.status(404).json({ error: 'Poll not found.' });
   if (req.user.role !== 'student') return res.status(403).json({ error: 'Only students can vote.' });
 
   const optionId = Number(req.body.option_id);
@@ -337,7 +336,7 @@ router.get('/', requireAuth, requireClassMember, async (req, res) => {
   if (date !== null && !ISO_DATE.test(date)) {
     return res.status(400).json({ error: 'date must be YYYY-MM-DD.' });
   }
-  const isProfessor = req.user.role === 'professor';
+  const isProfessor = req.isClassOwner;
   try {
     const polls = await selectPolls(
       `p.class_id = $1

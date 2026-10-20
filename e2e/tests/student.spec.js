@@ -38,9 +38,9 @@ test('a student posts a comment and replies to a classmate', async ({ page }) =>
   const bobsComment = page.getByTestId('comment').filter({ hasText: BOB_COMMENT });
   await bobsComment.getByRole('button', { name: 'Reply', exact: true }).click();
   await bobsComment.getByLabel('Write a reply').fill(reply);
-  await bobsComment.getByRole('button', { name: 'Reply', exact: true }).click();
+  await bobsComment.getByRole('button', { name: 'Post reply' }).click();
 
-  await bobsComment.getByRole('button', { name: /View \d+ repl/ }).click();
+  // Replies open automatically after posting
   await expect(bobsComment.getByText(reply)).toBeVisible();
 });
 

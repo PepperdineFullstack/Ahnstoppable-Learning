@@ -9,21 +9,13 @@
 
 import express from 'express';
 import pool from '../db/pool.js';
-import { requireAuth, requireProfessor, requireClassMember } from '../middleware/auth.js';
+import { requireAuth, requireProfessor, requireClassMember, requireClassOwner, isId } from '../middleware/auth.js';
 import { enrollNames } from '../services/roster.js';
 import { clearStudentLockout } from '../middleware/rateLimit.js';
+import { removeFromClassRooms } from '../socket/emit.js';
 
 const router = express.Router({ mergeParams: true });
-const NUMERIC = /^\d+$/;
 const MAX_NAMES = 200;
-
-async function requireClassOwner(req, res, next) {
-  const { rows } = await pool.query(`SELECT professor_id FROM classes WHERE id = $1`, [req.classId]);
-  if (rows[0]?.professor_id !== req.user.id) {
-    return res.status(403).json({ error: 'Only this class\'s professor can manage its roster.' });
-  }
-  next();
-}
 
 const guard = [requireAuth, requireProfessor, requireClassMember, requireClassOwner];
 
@@ -73,7 +65,7 @@ router.post('/', ...guard, async (req, res) => {
 // ── Remove from this class ────────────────────────────────────────────────────
 router.delete('/:userId', ...guard, async (req, res) => {
   const { userId } = req.params;
-  if (!NUMERIC.test(userId)) return res.status(404).json({ error: 'Student not found.' });
+  if (!isId(userId)) return res.status(404).json({ error: 'Student not found.' });
   try {
     const { rowCount } = await pool.query(
       `DELETE FROM class_members cm
@@ -83,6 +75,8 @@ router.delete('/:userId', ...guard, async (req, res) => {
       [userId, req.classId]
     );
     if (rowCount === 0) return res.status(404).json({ error: 'That student is not in this class.' });
+    // Stop their open tabs from receiving this class's live updates.
+    await removeFromClassRooms(req.app.get('io'), req.classId, Number(userId));
     return res.json({ removed: Number(userId) });
   } catch (err) {
     console.error(err);
@@ -94,7 +88,7 @@ router.delete('/:userId', ...guard, async (req, res) => {
 // The student creates a new password the next time they pick their name.
 router.post('/:userId/reset-password', ...guard, async (req, res) => {
   const { userId } = req.params;
-  if (!NUMERIC.test(userId)) return res.status(404).json({ error: 'Student not found.' });
+  if (!isId(userId)) return res.status(404).json({ error: 'Student not found.' });
   try {
     const { rowCount } = await pool.query(
       `UPDATE users u SET password = NULL

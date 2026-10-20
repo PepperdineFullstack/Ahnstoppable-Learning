@@ -5,6 +5,8 @@ export const STUDENTS = {
   alice:  { label: 'Student, Alice',  name: 'Alice Student',  password: 'alicepass1' },
   bob:    { label: 'Student, Bob',    name: 'Bob Student',    password: 'bobpass1' },
   newbie: { label: 'Student, Newbie', name: 'Newbie Student', password: null },  // hasn't signed in yet
+  casey:  { label: 'Student, Casey',  name: 'Casey Student',  password: 'caseypass1' },  // used by summary tests
+  dana:   { label: 'Student, Dana',   name: 'Dana Student',   password: 'danapass1' },   // Questions card action tests
 };
 
 export const CLASS = { title: 'TEST 101', section: 'E2E', label: 'TEST 101 · E2E' };

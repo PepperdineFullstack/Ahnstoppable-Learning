@@ -1,7 +1,6 @@
 // src/routes/classes.js
 // GET    /api/classes              – list all classes the current user belongs to
 // POST   /api/classes              – professor: create a class (auto-generates join code)
-// POST   /api/classes/join         – student: join a class by code
 // GET    /api/classes/:id          – get a single class (must be a member)
 // DELETE /api/classes/:id/leave    – student leaves a class
 //
@@ -10,7 +9,8 @@
 import express from 'express';
 import crypto from 'node:crypto';
 import pool from '../db/pool.js';
-import { requireAuth, requireProfessor, requireClassMember } from '../middleware/auth.js';
+import { requireAuth, requireProfessor, requireClassMember, isId } from '../middleware/auth.js';
+import { removeFromClassRooms } from '../socket/emit.js';
 
 const router = express.Router();
 
@@ -72,36 +72,6 @@ router.post('/', requireAuth, requireProfessor, async (req, res) => {
   }
 });
 
-// ── Join a class by code ──────────────────────────────────────────────────────
-router.post('/join', requireAuth, async (req, res) => {
-  const { join_code } = req.body;
-  if (!join_code) return res.status(400).json({ error: 'join_code is required.' });
-
-  try {
-    const { rows: cls } = await pool.query(
-      `SELECT c.id, c.title, c.section, c.start_time, c.end_time, c.professor_id,
-              u.name AS professor_name
-       FROM   classes c
-       JOIN   users u ON u.id = c.professor_id
-       WHERE  c.join_code = $1`,
-      [String(join_code).toUpperCase()]
-    );
-    if (cls.length === 0) {
-      return res.status(404).json({ error: 'No class found with that code.' });
-    }
-
-    await pool.query(
-      `INSERT INTO class_members (user_id, class_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-      [req.user.id, cls[0].id]
-    );
-
-    return res.json(cls[0]);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: 'Server error.' });
-  }
-});
-
 // ── Get a single class ────────────────────────────────────────────────────────
 router.get('/:id', requireAuth, requireClassMember, async (req, res) => {
   try {
@@ -126,7 +96,7 @@ router.get('/:id', requireAuth, requireClassMember, async (req, res) => {
 // ── Leave a class ─────────────────────────────────────────────────────────────
 router.delete('/:id/leave', requireAuth, async (req, res) => {
   const classId = req.params.id;
-  if (!/^\d+$/.test(classId)) return res.status(404).json({ error: 'Class not found.' });
+  if (!isId(classId)) return res.status(404).json({ error: 'Class not found.' });
 
   try {
     const { rows } = await pool.query(`SELECT professor_id FROM classes WHERE id = $1`, [classId]);
@@ -141,6 +111,7 @@ router.delete('/:id/leave', requireAuth, async (req, res) => {
     );
     if (rowCount === 0) return res.status(404).json({ error: 'You are not enrolled in this class.' });
 
+    await removeFromClassRooms(req.app.get('io'), Number(classId), req.user.id);
     return res.json({ message: 'Left class successfully.' });
   } catch (err) {
     console.error(err);

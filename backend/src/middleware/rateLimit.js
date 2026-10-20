@@ -8,8 +8,8 @@
 //     professor email). Successful sign-ins don't count.
 //   - ipLimiter is a generous ceiling per IP on all sign-in requests, to stop
 //     one machine from cycling through many accounts.
-// contentLimits() caps how fast one student can post questions, comments and
-// replies, which also stops spam from farming talent points.
+// contentLimits() caps how fast one student can post questions, comments,
+// replies and likes, which also stops spam from farming talent points.
 //
 // Counters live in server memory, which is fine for a single backend instance
 // and reset when the server restarts.
@@ -86,6 +86,20 @@ export function contentLimits({ name, perMinute, perHour, what }) {
   ];
 }
 
+// AI question summaries cost money per call, so each professor gets at most 10
+// per hour. Only summaries that were actually produced count.
+export const summaryLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: Number(process.env.SUMMARIES_PER_HOUR ?? 10),
+  keyGenerator: (req) => `summaries:${req.user.id}`,
+  skipFailedRequests: true,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  handler: tooMany("You've made 10 AI summaries in the last hour. Please try again later."),
+});
+
 // Comments and replies share one budget: both are discussion posts.
 export const questionLimits   = contentLimits({ name: 'questions',  perMinute: 5, perHour: 30, what: 'questions' });
 export const discussionLimits = contentLimits({ name: 'discussion', perMinute: 6, perHour: 60, what: 'comments and replies' });
+// Every like toggle is broadcast to the whole class, so cap scripted flooding.
+export const likeLimits       = contentLimits({ name: 'likes',      perMinute: 60, perHour: 600, what: 'likes' });

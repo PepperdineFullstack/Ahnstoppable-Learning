@@ -13,12 +13,12 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import pool from '../db/pool.js';
 import { accountLimiter, ipLimiter } from '../middleware/rateLimit.js';
+import { isId } from '../middleware/auth.js';
 
 const router = express.Router();
 
 const SALT_ROUNDS  = 12;
 const MIN_PASSWORD = 6;
-const NUMERIC      = /^\d+$/;
 
 // ── Register ──────────────────────────────────────────────────────────────────
 router.post('/register', ipLimiter, accountLimiter, async (req, res) => {
@@ -27,11 +27,14 @@ router.post('/register', ipLimiter, accountLimiter, async (req, res) => {
   if (!email || !password || !name) {
     return res.status(400).json({ error: 'email, password, and name are required.' });
   }
+  if (typeof email !== 'string' || typeof password !== 'string' || typeof name !== 'string') {
+    return res.status(400).json({ error: 'email, password, and name must be text.' });
+  }
   // Students no longer self-register; their professor adds them to a roster.
   if (role !== 'professor') {
     return res.status(400).json({ error: 'Students are added to a class by their professor.' });
   }
-  if (String(password).length < MIN_PASSWORD) {
+  if (password.length < MIN_PASSWORD) {
     return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD} characters.` });
   }
   // Professor accounts require the invite code from PROFESSOR_SIGNUP_CODE.
@@ -65,7 +68,7 @@ router.post('/register', ipLimiter, accountLimiter, async (req, res) => {
 router.post('/login', ipLimiter, accountLimiter, async (req, res) => {
   const { email, password } = req.body;
 
-  if (!email || !password) {
+  if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
     return res.status(400).json({ error: 'email and password are required.' });
   }
 
@@ -111,7 +114,7 @@ router.get('/classes', async (_req, res) => {
 // ── Student sign-in: names in one class ──────────────────────────────────────
 router.get('/classes/:classId/students', async (req, res) => {
   const { classId } = req.params;
-  if (!NUMERIC.test(classId)) return res.status(404).json({ error: 'Class not found.' });
+  if (!isId(classId)) return res.status(404).json({ error: 'Class not found.' });
   try {
     const { rows } = await pool.query(
       `SELECT u.id, COALESCE(u.sort_name, u.name) AS label, (u.password IS NOT NULL) AS has_password
@@ -129,7 +132,7 @@ router.get('/classes/:classId/students', async (req, res) => {
 
 // A student enrolled in the given class, with their password hash, or null.
 async function findRosterStudent(classId, userId) {
-  if (!NUMERIC.test(String(classId)) || !NUMERIC.test(String(userId))) return null;
+  if (!isId(classId) || !isId(userId)) return null;
   const { rows } = await pool.query(
     `SELECT u.id, u.email, u.name, u.role, u.password AS hash
      FROM   users u
