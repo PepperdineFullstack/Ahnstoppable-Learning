@@ -50,11 +50,24 @@ async function countStudents(classId) {
   return rows[0].n;
 }
 
+// A check left running past its day (the professor never clicked End) is
+// ended at midnight that night. Otherwise it would show as live on every later
+// day, collect votes there, and block starting a new check.
+async function endLeftoverRounds(classId) {
+  await pool.query(
+    `UPDATE understand_rounds SET ended_at = (scheduled_for + 1)::timestamptz
+     WHERE  class_id = $1 AND started_at IS NOT NULL AND ended_at IS NULL
+       AND  scheduled_for < CURRENT_DATE`,
+    [classId]
+  );
+}
+
 async function getOpenRound(classId) {
   const { rows } = await pool.query(
     `SELECT ${ROUND_COLS}
      FROM   understand_rounds
-     WHERE  class_id = $1 AND started_at IS NOT NULL AND ended_at IS NULL`,
+     WHERE  class_id = $1 AND started_at IS NOT NULL AND ended_at IS NULL
+       AND  scheduled_for = CURRENT_DATE`,
     [classId]
   );
   return rows[0] ?? null;
@@ -87,6 +100,7 @@ router.post('/understand/rounds', requireAuth, requireProfessor, requireClassMem
     return res.status(400).json({ error: 'scheduled_for must be YYYY-MM-DD.' });
   }
   try {
+    await endLeftoverRounds(req.classId);
     const when = await dayStatus(date);
     if (when === 'past') return res.status(400).json({ error: "You can't plan a check for a day that has passed." });
     const startNow = when === 'today' && req.body.prepare !== true;
@@ -144,6 +158,7 @@ router.post('/understand/rounds/:roundId/start', requireAuth, requireProfessor, 
     if (await dayStatus(existing.scheduled_for) !== 'today') {
       return res.status(409).json({ error: `This check is planned for ${longDay(existing.scheduled_for)}. You can start it on that day.` });
     }
+    await endLeftoverRounds(req.classId);
     const { rows } = await pool.query(
       `UPDATE understand_rounds SET started_at = NOW()
        WHERE  id = $1 AND class_id = $2 AND started_at IS NULL AND scheduled_for = CURRENT_DATE
@@ -193,6 +208,7 @@ router.get('/understand/rounds', requireAuth, requireClassMember, async (req, re
   }
   const isProfessor = req.isClassOwner;
   try {
+    await endLeftoverRounds(req.classId);
     const { rows } = await pool.query(
       `SELECT r.id, r.label, r.scheduled_for, r.started_at, r.ended_at,
               COUNT(c.id)::int                                            AS responded,
@@ -249,6 +265,7 @@ router.post('/understand', requireAuth, requireClassMember, async (req, res) => 
     return res.status(400).json({ error: `response must be one of: ${VALID_RESPONSES.join(', ')}` });
   }
   try {
+    await endLeftoverRounds(req.classId);
     const round = await getOpenRound(req.classId);
     if (!round) return res.status(409).json({ error: 'No check is running right now.' });
 
@@ -275,13 +292,14 @@ router.post('/understand', requireAuth, requireClassMember, async (req, res) => 
 // ── Current state (member) ────────────────────────────────────────────────────
 router.get('/understand', requireAuth, requireClassMember, async (req, res) => {
   try {
-    // Open round if any, else the most recent round started TODAY (so results
-    // stay visible for the rest of the session but never bleed into another day).
+    // Today's open round if any, else today's most recent round (so results
+    // stay visible for the rest of the session). Rounds from other days never
+    // count, even one that was left running.
+    await endLeftoverRounds(req.classId);
     const { rows } = await pool.query(
       `SELECT ${ROUND_COLS}
        FROM   understand_rounds
-       WHERE  class_id = $1 AND started_at IS NOT NULL
-         AND  (ended_at IS NULL OR scheduled_for = CURRENT_DATE)
+       WHERE  class_id = $1 AND started_at IS NOT NULL AND scheduled_for = CURRENT_DATE
        ORDER  BY (ended_at IS NULL) DESC, started_at DESC
        LIMIT  1`,
       [req.classId]

@@ -47,6 +47,18 @@ async function selectPolls(whereSql, params, tail = '') {
   return rows;
 }
 
+// A poll left open past its day (the professor never clicked Close) is closed
+// at midnight that night. Otherwise it would show as open on every later day,
+// collect votes there, and block starting a new poll.
+async function closeLeftoverPolls(classId) {
+  await pool.query(
+    `UPDATE polls SET closed_at = (scheduled_for + 1)::timestamptz
+     WHERE  class_id = $1 AND opened_at IS NOT NULL AND closed_at IS NULL
+       AND  scheduled_for < CURRENT_DATE`,
+    [classId]
+  );
+}
+
 async function getPollById(pollId, classId) {
   const rows = await selectPolls('p.id = $1 AND p.class_id = $2', [pollId, classId]);
   return rows[0] ?? null;
@@ -129,6 +141,7 @@ router.post('/', requireAuth, requireProfessor, requireClassMember, requireClass
     return res.status(400).json({ error: 'Options must be different from each other.' });
   }
 
+  await closeLeftoverPolls(req.classId);
   const when = await dayStatus(date);
   if (when === 'past') return res.status(400).json({ error: "You can't plan a poll for a day that has passed." });
   // Start now only for today and when not asked to prepare it.
@@ -204,6 +217,7 @@ router.post('/:pollId/start', requireAuth, requireProfessor, requireClassMember,
     if (await dayStatus(existing.scheduled_for) !== 'today') {
       return res.status(409).json({ error: `This poll is planned for ${longDay(existing.scheduled_for)}. You can start it on that day.` });
     }
+    await closeLeftoverPolls(req.classId);
     const { rowCount } = await pool.query(
       `UPDATE polls SET opened_at = NOW()
        WHERE  id = $1 AND class_id = $2 AND opened_at IS NULL AND scheduled_for = CURRENT_DATE`,
@@ -247,12 +261,12 @@ router.delete('/:pollId', requireAuth, requireProfessor, requireClassMember, req
 // Declared before the /:pollId routes so "current" is never read as an id.
 router.get('/current', requireAuth, requireClassMember, async (req, res) => {
   try {
-    // Open poll if any, else the most recent poll started TODAY (so results stay
-    // visible for the rest of the session but never bleed into another day).
-    // Prepared polls never count.
+    // Today's open poll if any, else today's most recent poll (so results stay
+    // visible for the rest of the session). Prepared polls and polls from other
+    // days never count, even one that was left open.
+    await closeLeftoverPolls(req.classId);
     const rows = await selectPolls(
-      `p.class_id = $1 AND p.opened_at IS NOT NULL
-       AND (p.closed_at IS NULL OR p.scheduled_for = CURRENT_DATE)`,
+      `p.class_id = $1 AND p.opened_at IS NOT NULL AND p.scheduled_for = CURRENT_DATE`,
       [req.classId],
       'ORDER BY (p.closed_at IS NULL) DESC, p.opened_at DESC LIMIT 1'
     );
@@ -300,6 +314,7 @@ router.post('/:pollId/votes', requireAuth, requireClassMember, async (req, res) 
   }
 
   try {
+    await closeLeftoverPolls(req.classId);
     const poll = await getPollById(pollId, req.classId);
     if (!poll) return res.status(404).json({ error: 'Poll not found.' });
     if (!poll.opened_at) return res.status(409).json({ error: "This poll hasn't started yet." });
@@ -338,6 +353,7 @@ router.get('/', requireAuth, requireClassMember, async (req, res) => {
   }
   const isProfessor = req.isClassOwner;
   try {
+    await closeLeftoverPolls(req.classId);
     const polls = await selectPolls(
       `p.class_id = $1
        AND p.scheduled_for = COALESCE($2::date, CURRENT_DATE)

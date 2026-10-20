@@ -290,19 +290,27 @@ function ClassPolls({ classId, date }) {
   const [busy,    setBusy]    = useState(false);
   const [error,   setError]   = useState(null);
 
-  const { poll, tally, responded, total_students, my_option_id } = state;
+  // The live area only ever shows a poll from the day on screen. The browser
+  // and the class can disagree on what "today" is (another timezone, or a tab
+  // left open overnight), so a poll from another day is treated as none.
+  const current = state.poll && state.poll.scheduled_for !== date
+    ? { ...EMPTY, total_students: state.total_students }
+    : state;
+  const { poll, tally, responded, total_students, my_option_id } = current;
   const isOpen    = !!poll && !poll.closed_at;
   const showTally = !!poll && Array.isArray(tally);
 
   // ── Current poll (today only) ──────────────────────────────────────────────
+  // Reloaded when the viewed day changes, so coming back to today never shows
+  // a poll that was current when the page first opened (e.g. yesterday's).
   useEffect(() => {
-    if (!classId) return;
+    if (!classId || !isToday) return;
     let ignore = false;
     api.get(`/api/classes/${classId}/polls/current`)
       .then((res) => { if (!ignore) setState(res.data); })
       .catch((err) => console.error("Failed to load poll:", err));
     return () => { ignore = true; };
-  }, [classId]);
+  }, [classId, date, isToday]);
 
   // ── Polls for the viewed day ───────────────────────────────────────────────
   const loadHistory = useCallback(() => {

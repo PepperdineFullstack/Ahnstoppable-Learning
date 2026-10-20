@@ -131,20 +131,28 @@ function UnderstandCheck({ classId, date }) {
   const [busy,    setBusy]    = useState(false);
   const [error,   setError]   = useState(null);
 
-  const { round, tally, responded, total_students, my_response } = state;
+  // The live area only ever shows a check from the day on screen. The browser
+  // and the class can disagree on what "today" is (another timezone, or a tab
+  // left open overnight), so a check from another day is treated as none.
+  const current = state.round && state.round.scheduled_for !== date
+    ? { ...EMPTY, total_students: state.total_students }
+    : state;
+  const { round, tally, responded, total_students, my_response } = current;
   const isOpen    = !!round && !round.ended_at;
   const showTally = !!round && Array.isArray(tally) && (isProfessor || !!round.ended_at);
   const counts    = Object.fromEntries((tally ?? []).map((r) => [r.response, r.count]));
 
   // ── Current round (today only) ─────────────────────────────────────────────
+  // Reloaded when the viewed day changes, so coming back to today never shows
+  // a check that was current when the page first opened (e.g. yesterday's).
   useEffect(() => {
-    if (!classId) return;
+    if (!classId || !isToday) return;
     let ignore = false;
     api.get(`/api/classes/${classId}/understand`)
       .then((res) => { if (!ignore) setState(res.data); })
       .catch((err) => console.error("Failed to load understanding check:", err));
     return () => { ignore = true; };
-  }, [classId]);
+  }, [classId, date, isToday]);
 
   // ── Rounds for the viewed day ──────────────────────────────────────────────
   const loadHistory = useCallback(() => {
