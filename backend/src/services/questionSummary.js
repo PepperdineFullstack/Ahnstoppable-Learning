@@ -1,13 +1,16 @@
 // src/services/questionSummary.js
-// Summarize one class day's student questions for the professor with Claude.
+// Summarize one class day's student questions for the professor with Gemini.
 //
 // Only the question text (and whether the professor already answered it) is
 // sent, numbered Q1…Qn: no names, ids or emails. The API key stays on the
-// server (ANTHROPIC_API_KEY); ANTHROPIC_BASE_URL can point the SDK elsewhere
-// (the browser tests use a fake API that way).
-import Anthropic from '@anthropic-ai/sdk';
+// server (GEMINI_API_KEY). GEMINI_MODEL picks another model; GEMINI_BASE_URL
+// can point the SDK elsewhere (the browser tests use a fake API that way).
+import { GoogleGenAI, ApiError } from '@google/genai';
 
-export const SUMMARY_MODEL = 'claude-opus-5-5';
+export const SUMMARY_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+
+// Finish reasons meaning Gemini declined to write the summary.
+const BLOCKED = new Set(['SAFETY', 'RECITATION', 'BLOCKLIST', 'PROHIBITED_CONTENT', 'SPII', 'LANGUAGE', 'OTHER']);
 
 // A problem the professor should see as a plain message.
 export class SummaryError extends Error {
@@ -18,12 +21,19 @@ export class SummaryError extends Error {
 }
 
 export function summariesConfigured() {
-  return Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
+  return Boolean(process.env.GEMINI_API_KEY);
 }
 
 let client = null;
 function getClient() {
-  client ??= new Anthropic({ timeout: 120_000, maxRetries: 2 });
+  client ??= new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY,
+    httpOptions: {
+      timeout: 120_000,
+      retryOptions: { attempts: 3, initialDelay: 1, maxDelay: 8 },
+      ...(process.env.GEMINI_BASE_URL ? { baseUrl: process.env.GEMINI_BASE_URL } : {}),
+    },
+  });
   return client;
 }
 
@@ -97,7 +107,7 @@ function cleanSummary(raw, count) {
 // Returns { summary, model }. Throws SummaryError with a message for the professor.
 export async function summarizeQuestions(questions) {
   if (!summariesConfigured()) {
-    throw new SummaryError(503, "AI summaries aren't set up yet. Add an ANTHROPIC_API_KEY to the server.");
+    throw new SummaryError(503, "AI summaries aren't set up yet. Add a GEMINI_API_KEY to the server.");
   }
   if (questions.length === 0) {
     throw new SummaryError(400, 'There are no questions on this day to summarize.');
@@ -105,50 +115,49 @@ export async function summarizeQuestions(questions) {
 
   let response;
   try {
-    response = await getClient().beta.messages.create({
+    response = await getClient().models.generateContent({
       model: SUMMARY_MODEL,
-      max_tokens: 16000,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: buildUserMessage(questions) }],
-      output_config: { effort: 'medium', format: { type: 'json_schema', schema: SUMMARY_SCHEMA } },
-      // If a safety check declines, Anthropic re-runs it on its recommended
-      // fallback model within the same call.
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
+      contents: buildUserMessage(questions),
+      config: {
+        systemInstruction: SYSTEM_PROMPT,
+        responseMimeType: 'application/json',
+        responseJsonSchema: SUMMARY_SCHEMA,
+        maxOutputTokens: 16000,
+      },
     });
   } catch (err) {
-    if (err instanceof Anthropic.AuthenticationError || err instanceof Anthropic.PermissionDeniedError) {
-      console.error('Question summary: the Anthropic API key was rejected:', err.message);
-      throw new SummaryError(503, "AI summaries aren't set up correctly (the API key was rejected).");
-    }
-    if (err instanceof Anthropic.RateLimitError) {
-      throw new SummaryError(503, 'The AI service is busy right now. Please try again in a minute.');
-    }
-    if (err instanceof Anthropic.APIConnectionError) {
-      console.error('Question summary: could not reach the Anthropic API:', err.message);
-      throw new SummaryError(503, "Couldn't reach the AI service. Please try again shortly.");
-    }
-    if (err instanceof Anthropic.APIError) {
-      console.error(`Question summary: Anthropic API error ${err.status}:`, err.message);
+    if (err instanceof ApiError) {
+      // An invalid key comes back as 400 "API key not valid".
+      if (err.status === 401 || err.status === 403 || (err.status === 400 && /api key/i.test(err.message))) {
+        console.error('Question summary: the Gemini API key was rejected:', err.message);
+        throw new SummaryError(503, "AI summaries aren't set up correctly (the API key was rejected).");
+      }
+      if (err.status === 429 || err.status === 503) {
+        throw new SummaryError(503, 'The AI service is busy right now. Please try again in a minute.');
+      }
+      console.error(`Question summary: Gemini API error ${err.status}:`, err.message);
       throw new SummaryError(502, 'The AI service had a problem. Please try again.');
     }
-    throw err;
+    // Anything else is the network: no connection, DNS, or the timeout.
+    console.error('Question summary: could not reach the Gemini API:', err.message);
+    throw new SummaryError(503, "Couldn't reach the AI service. Please try again shortly.");
   }
 
-  if (response.stop_reason === 'refusal') {
-    console.warn('Question summary refused:', response.stop_details?.category ?? 'no category');
+  const blockReason = response.promptFeedback?.blockReason;
+  const finishReason = response.candidates?.[0]?.finishReason;
+  if (blockReason || BLOCKED.has(finishReason)) {
+    console.warn('Question summary refused:', blockReason ?? finishReason);
     throw new SummaryError(422, "The AI couldn't summarize these questions.");
   }
-  if (response.stop_reason === 'max_tokens') {
+  if (finishReason === 'MAX_TOKENS') {
     throw new SummaryError(502, "The AI's summary was cut off. Please try again.");
   }
 
-  const text = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
   let raw;
   try {
-    raw = JSON.parse(text);
+    raw = JSON.parse(response.text ?? '');
   } catch {
     throw new SummaryError(502, "The AI's summary came back in an unexpected format. Please try again.");
   }
-  return { summary: cleanSummary(raw, questions.length), model: response.model ?? SUMMARY_MODEL };
+  return { summary: cleanSummary(raw, questions.length), model: response.modelVersion ?? SUMMARY_MODEL };
 }

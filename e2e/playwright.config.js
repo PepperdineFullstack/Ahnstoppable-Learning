@@ -1,7 +1,7 @@
 // Browser tests: a professor and students using the real site in Chrome,
 // against a throwaway local database (see test-db.js and global-setup.js).
 import { defineConfig } from '@playwright/test';
-import { API_PORT, WEB_PORT, FAKE_ANTHROPIC_PORT, E2E_DIR, BACKEND_DIR, CLIENT_DIR, APP_TIMEZONE, testDatabaseUrl } from './test-db.js';
+import { API_PORT, WEB_PORT, FAKE_GEMINI_PORT, E2E_DIR, BACKEND_DIR, CLIENT_DIR, APP_TIMEZONE, testDatabaseUrl } from './test-db.js';
 
 const API = `http://localhost:${API_PORT}`;
 const WEB = `http://localhost:${WEB_PORT}`;
@@ -25,9 +25,9 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: 'node fake-anthropic.js',   // stand-in Claude API for the AI summary
+      command: 'node fake-gemini.js',      // stand-in Gemini API for the AI summary
       cwd: E2E_DIR,
-      port: FAKE_ANTHROPIC_PORT,
+      port: FAKE_GEMINI_PORT,
       reuseExistingServer: false,
     },
     {
@@ -42,8 +42,9 @@ export default defineConfig({
         DATABASE_SSL: '',
         APP_TIMEZONE,
         JWT_SECRET: 'e2e-test-secret',
-        ANTHROPIC_API_KEY: 'test-key',
-        ANTHROPIC_BASE_URL: `http://localhost:${FAKE_ANTHROPIC_PORT}`,
+        GEMINI_API_KEY: 'test-key',
+        GEMINI_BASE_URL: `http://localhost:${FAKE_GEMINI_PORT}`,
+        GEMINI_MODEL: '',
         CORS_ORIGIN: WEB,
       },
     },

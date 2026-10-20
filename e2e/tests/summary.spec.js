@@ -1,13 +1,13 @@
 // The professor's AI summary of a day's student questions, against the fake
-// Claude API (fake-anthropic.js): no key, no cost, real SDK call path.
+// Gemini API (fake-gemini.js): no key, no cost, real SDK call path.
 import { test, expect } from '@playwright/test';
 import { STUDENTS } from './people.js';
-import { API_PORT, FAKE_ANTHROPIC_PORT } from '../test-db.js';
+import { API_PORT, FAKE_GEMINI_PORT } from '../test-db.js';
 import { signInProfessor, signInStudent, openClass, card, unique, fixtures, studentToken } from './helpers.js';
 
 const { casey } = STUDENTS;
 const API  = `http://localhost:${API_PORT}`;
-const FAKE = `http://localhost:${FAKE_ANTHROPIC_PORT}`;
+const FAKE = `http://localhost:${FAKE_GEMINI_PORT}`;
 
 async function call(method, path, token, body) {
   const res = await fetch(API + path, {
@@ -53,12 +53,12 @@ test('the professor summarizes the day, and it is saved for next time', async ({
   // What was sent to the AI: the model, the schema, the questions, and no names
   const requests = await fakeRequests();
   expect(requests.length).toBe(before + 1);
-  const { body, headers } = requests.at(-1);
-  expect(body.model).toBe('claude-opus-5-5');
-  expect(body.output_config.format.type).toBe('json_schema');
-  expect(headers.beta).toContain('server-side-fallback-2026-07-01');
-  expect(body.fallbacks).toBe('default');
-  const sent = JSON.stringify(body.messages);
+  const { model, body, headers } = requests.at(-1);
+  expect(model).toBe('gemini-3.8-flash');
+  expect(headers.apiKey).toBe('test-key');
+  expect(body.generationConfig.responseMimeType).toBe('application/json');
+  expect(body.generationConfig.responseJsonSchema.required).toContain('themes');
+  const sent = JSON.stringify(body.contents) + JSON.stringify(body.systemInstruction);
   for (const q of asked) expect(sent).toContain(q);
   for (const s of Object.values(STUDENTS)) {
     expect(sent).not.toContain(s.name);

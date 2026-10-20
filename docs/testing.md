@@ -14,7 +14,7 @@ signed in as a professor and as students, the way people actually use it.
 | `questions.spec.js` | A student whose browser formats dates as M/D/YYYY still sees the right day and can ask questions. Unreadable or wrong dates are filed under today. Rejected questions don't count toward the limit, and the 6th real question in a minute is blocked. The professor's discussion post shows no time. |
 | `results.spec.js` | The Results page lists every poll and understanding check with who answered what, and both CSV downloads contain the answers. Students can't open it. |
 | `threads.spec.js` | Students can keep replying in a thread; the reply box opens right under whatever was clicked (the comment, or a reply). The comment box grows with the text, shrinks back, and takes up to 1000 characters (the server enforces the same limit). The class page shows the class name for the professor ("You're teaching") and students, and in the browser tab. |
-| `summary.spec.js` | The professor's AI summary of a day's questions: created on demand, saved and shown again without another AI call, Refresh after new questions, friendly errors when the AI declines or is busy, no student names sent to the AI, and students can't see or create summaries. Uses a fake Claude API (`e2e/fake-anthropic.js`), so there's no API key or cost. |
+| `summary.spec.js` | The professor's AI summary of a day's questions: created on demand, saved and shown again without another AI call, Refresh after new questions, friendly errors when the AI declines or is busy, no student names sent to the AI, and students can't see or create summaries. Uses a fake Gemini API (`e2e/fake-gemini.js`), so there's no API key or cost. |
 | `edit-delete.spec.js` | A student edits and deletes their own comment and reply (shown as "You", marked "(edited)", updated and removed live for classmates, participation points taken back on delete). Students can't edit or delete others' comments and still don't learn who wrote them; the professor can delete any comment but can't edit a student's words; edit length is validated. |
 | `hardening.spec.js` | Only the class's own professor sees student names or can run the class (another professor who is merely a member can't), and join-by-code is gone. Students get 404 on comments of a post planned for a future day. Bad or oversized ids are 404s, not server errors. A refused reply shows its error inside the reply box and keeps the text; the box and its draft survive "Hide replies". After a dropped connection, replies and deletions made meanwhile appear without a reload. A double-clicked like ends in the same state a reload shows. |
 | `likes.spec.js` | Liking comments and replies: one like per person (liking twice counts once), counts update live for classmates, unliking works, and both counts and your own heart survive a reload. Who liked is never sent. |
@@ -46,6 +46,6 @@ npm test
   stop them afterwards, so they don't clash with anything already running.
 - Like production, the test database runs in UTC while the app runs with
   `APP_TIMEZONE=America/Los_Angeles`, and the browser uses that timezone too.
-- The AI summary talks to `e2e/fake-anthropic.js` on port 4320 instead of the real
-  Claude API, through the real Anthropic SDK.
+- The AI summary talks to `e2e/fake-gemini.js` on port 4320 instead of the real
+  Gemini API, through the real Google Gen AI SDK.
 - Rate limits stay switched on, exactly as in production.
