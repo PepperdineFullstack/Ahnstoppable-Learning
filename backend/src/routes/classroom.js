@@ -94,7 +94,7 @@ function emitPrepared(io, classId, date) {
 
 // ── Start a round now, or prepare one (professor) ────────────────────────────
 router.post('/understand/rounds', requireAuth, requireProfessor, requireClassMember, requireClassOwner, async (req, res) => {
-  const label = typeof req.body.label === 'string' ? req.body.label.trim().slice(0, 120) : null;
+  const label = typeof req.body.label === 'string' ? req.body.label.trim() : null;
   const date  = req.body.scheduled_for ?? null;
   if (date !== null && !ISO_DATE.test(String(date))) {
     return res.status(400).json({ error: 'scheduled_for must be YYYY-MM-DD.' });

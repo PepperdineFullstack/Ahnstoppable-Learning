@@ -11,15 +11,22 @@ import CreateDiscussion from "../components/classroom/CreateDiscussion";
 import DiscussionFeed from "../components/classroom/discussion-board/DiscussionFeed";
 import AnonymousToggle from "../components/classroom/AnonymousToggle";
 import StudentQuestions from "../components/classroom/StudentQuestions";
+import ClassSwitcher, { classLabel as labelOf } from "../components/classroom/ClassSwitcher";
 import { useAuth } from "../context/AuthContext";
 import { ClassViewContext } from "../context/ClassViewContext";
 import { useClassRoom } from "../hooks/useClassRoom";
 import api from "../api/axios";
 import { todayKey } from "../utils/dates";
 
+// classId comes from the route: <Route path="/class/:classId" element={<ClassDashboard />} />
+// Keyed by class, so switching classes starts the page fresh (today's date,
+// out of "View as student", nothing left over from the previous class).
 function ClassDashboard() {
-  // classId comes from the route: <Route path="/class/:classId" element={<ClassDashboard />} />
   const { classId } = useParams();
+  return <ClassPage key={classId} classId={classId} />;
+}
+
+function ClassPage({ classId }) {
   const { user }    = useAuth();
   const [showNames, setShowNames] = useState(user?.role === 'professor');
   // "View as student": the page renders exactly as students see it.
@@ -32,13 +39,12 @@ function ClassDashboard() {
   const [cls, setCls] = useState(null);
   useEffect(() => {
     let ignore = false;
-    setCls(null);
     api.get(`/api/classes/${classId}`)
       .then((res) => { if (!ignore) setCls(res.data); })
       .catch((err) => console.error("Failed to load class:", err));
     return () => { ignore = true; };
   }, [classId]);
-  const classLabel = cls ? (cls.section ? `${cls.title} · ${cls.section}` : cls.title) : "";
+  const classLabel = cls ? labelOf(cls) : "";
   useEffect(() => {
     if (!classLabel) return;
     const previous = document.title;
@@ -79,17 +85,20 @@ function ClassDashboard() {
 
         <div className="mx-auto flex flex-col justify-center items-center gap-4 w-full px-4 sm:px-6 lg:w-10/12 lg:px-0 pb-8 bg-white dark:bg-slate-800">
 
-          {/* Which class this is */}
-          <div className="w-full px-2 sm:px-3 pt-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-              {isRealProfessor ? "You're teaching" : "Class"}
-            </p>
-            <h1 className="std-text text-2xl sm:text-3xl" data-testid="class-name">
-              {classLabel || "\u00a0"}
-            </h1>
-            {cls?.professor_name && !isRealProfessor && (
-              <p className="text-sm text-slate-500 dark:text-slate-400">{cls.professor_name}</p>
-            )}
+          {/* Which class this is, and (professors) a quick way to another one */}
+          <div className="w-full px-2 sm:px-3 pt-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                {isRealProfessor ? "You're teaching" : "Class"}
+              </p>
+              <h1 className="std-text text-2xl sm:text-3xl" data-testid="class-name">
+                {classLabel || "\u00a0"}
+              </h1>
+              {cls?.professor_name && !isRealProfessor && (
+                <p className="text-sm text-slate-500 dark:text-slate-400">{cls.professor_name}</p>
+              )}
+            </div>
+            {isProfessorView && <ClassSwitcher classId={classId} />}
           </div>
 
           {/* Date navigator, with the professor's name toggle off to the side */}

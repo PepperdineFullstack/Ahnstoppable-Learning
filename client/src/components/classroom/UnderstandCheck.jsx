@@ -268,7 +268,6 @@ function UnderstandCheck({ classId, date }) {
       value={label}
       onChange={(e) => setLabel(e.target.value)}
       onKeyDown={(e) => { if (e.key === "Enter" && !busy) onEnter(); }}
-      maxLength={120}
       placeholder="What are you checking? (optional)"
       className="flex-1 std-text bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-2 rounded-md text-sm outline-blue-600 focus:ring-2 focus:ring-blue-500/20"
     />
@@ -332,7 +331,7 @@ function UnderstandCheck({ classId, date }) {
           <ul className="mt-2 divide-y divide-slate-100 dark:divide-slate-700">
             {dayRounds.map((r, i) => (
               <li key={r.id} className="py-3">
-                <p className="text-sm text-slate-500 dark:text-slate-400">
+                <p className="text-sm text-slate-500 dark:text-slate-400 break-words">
                   <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 mr-2">#{i + 1}</span>
                   <span className="font-semibold std-text">{r.label || "Untitled check"}</span>
                   {" · "}{timeOf(r.started_at)}{r.ended_at ? ` – ${timeOf(r.ended_at)}` : " · never ended"}
@@ -372,7 +371,7 @@ function UnderstandCheck({ classId, date }) {
       </div>
 
       {round ? (
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 break-words">
           <span className="font-semibold std-text">{round.label || "Untitled check"}</span>
           {" · "}started {timeOf(round.started_at)}
           {round.ended_at && ` · ended ${timeOf(round.ended_at)}`}
@@ -452,7 +451,7 @@ function UnderstandCheck({ classId, date }) {
           <ul className="mt-1 divide-y divide-slate-100 dark:divide-slate-700">
             {dayRounds.map((r) => (
               <li key={r.id} className="py-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-xs">
-                <span className="std-text font-medium truncate">
+                <span className="std-text font-medium break-words min-w-0">
                   {r.label || "Untitled check"}
                   <span className="ml-2 font-normal text-slate-400">
                     {timeOf(r.started_at)}{r.ended_at ? ` – ${timeOf(r.ended_at)}` : " · live"}

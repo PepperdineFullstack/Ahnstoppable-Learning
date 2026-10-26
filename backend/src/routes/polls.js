@@ -25,8 +25,6 @@ import { ISO_DATE, dayStatus, longDay } from '../utils/days.js';
 
 const router = express.Router({ mergeParams: true });
 
-const MAX_QUESTION = 300;
-const MAX_OPTION   = 100;
 const MIN_OPTIONS  = 2;
 const MAX_OPTIONS  = 6;
 
@@ -126,17 +124,11 @@ router.post('/', requireAuth, requireProfessor, requireClassMember, requireClass
   }
 
   if (!question) return res.status(400).json({ error: 'question is required.' });
-  if (question.length > MAX_QUESTION) {
-    return res.status(400).json({ error: `question must be ${MAX_QUESTION} characters or fewer.` });
-  }
   if (!Array.isArray(raw) || raw.length < MIN_OPTIONS || raw.length > MAX_OPTIONS) {
     return res.status(400).json({ error: `Provide between ${MIN_OPTIONS} and ${MAX_OPTIONS} options.` });
   }
   const options = raw.map((o) => (typeof o === 'string' ? o.trim() : ''));
   if (options.some((o) => !o)) return res.status(400).json({ error: 'Every option needs text.' });
-  if (options.some((o) => o.length > MAX_OPTION)) {
-    return res.status(400).json({ error: `Options must be ${MAX_OPTION} characters or fewer.` });
-  }
   if (new Set(options.map((o) => o.toLowerCase())).size !== options.length) {
     return res.status(400).json({ error: 'Options must be different from each other.' });
   }

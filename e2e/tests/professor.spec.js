@@ -67,6 +67,42 @@ test('a professor runs an understanding check and watches answers arrive', async
   await close();
 });
 
+test('poll questions and answers have no length limit, and long answers wrap onto new lines', async ({ browser }) => {
+  const { prof, stu, close } = await professorAndStudent(browser);
+  const profPolls = card(prof, /Polls/);
+  const stuPolls  = card(stu, /Polls/);
+
+  // Longer than the old limits (300 for the question, 100 per answer).
+  const question = unique(`${'Which of these marketing ideas should we explore next week? '.repeat(7)}`);
+  const longAnswer = `${'A long answer that keeps going past the edge of the box '.repeat(4)}end`;
+  expect(question.length).toBeGreaterThan(300);
+  expect(longAnswer.length).toBeGreaterThan(100);
+
+  await profPolls.getByPlaceholder('Ask the class a question…').fill(question);
+  const option1 = profPolls.getByPlaceholder('Option 1');
+  const oneLine = (await option1.boundingBox()).height;
+  await option1.fill(longAnswer);
+  // The box grows downward as the text wraps instead of scrolling sideways.
+  await expect.poll(async () => (await option1.boundingBox()).height).toBeGreaterThan(oneLine * 1.5);
+  await expect(option1).toHaveValue(longAnswer);
+  await profPolls.getByPlaceholder('Option 2').fill('Short answer');
+
+  await profPolls.getByRole('button', { name: 'Start poll' }).click();
+  await expect(profPolls.getByText('Live', { exact: true })).toBeVisible();
+  await expect(stuPolls.getByText(question)).toBeVisible();
+  await stuPolls.getByRole('button', { name: longAnswer }).click();
+  await expect(stuPolls.getByText('Answer recorded')).toBeVisible();
+  await profPolls.getByRole('button', { name: 'Close poll & show results' }).click();
+
+  // The understanding check's label isn't cut off at 120 characters any more.
+  const label = unique('Slide 12: '.padEnd(200, 'x'));
+  const round = await server.startCheck(await professorToken(), label);
+  expect(round.label).toBe(label);
+  await server.endCheck(await professorToken(), round.id);
+
+  await close();
+});
+
 test('a professor creates a poll, sees who voted live, and closes it', async ({ browser }) => {
   const { prof, stu, close } = await professorAndStudent(browser);
   const profPolls = card(prof, /Polls/);

@@ -15,9 +15,8 @@ import api from "../../api/axios";
 import socket from "../../api/socket";
 import { useClassView, PREVIEW_MESSAGE } from "../../context/ClassViewContext";
 import { todayKey } from "../../utils/dates";
+import AutoGrowTextarea from "../ui/AutoGrowTextarea";
 
-const MAX_QUESTION = 300;
-const MAX_OPTION   = 100;
 const MIN_OPTIONS  = 2;
 const MAX_OPTIONS  = 6;
 
@@ -104,7 +103,7 @@ function OptionButtons({ options, myOptionId, onVote }) {
             type="button"
             onClick={() => onVote(o.id)}
             aria-pressed={mine}
-            className={`w-full text-left px-4 py-3 rounded-md border std-text text-sm transition-all cursor-pointer ${
+            className={`w-full text-left px-4 py-3 rounded-md border std-text text-sm break-words transition-all cursor-pointer ${
               mine
                 ? "ring-2 ring-blue-400 border-blue-400 bg-blue-50 dark:bg-blue-900/30"
                 : "border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/40"
@@ -144,28 +143,27 @@ function PollComposer({ onSubmit, busy, mode = "today", date }) {
 
   return (
     <div className="mt-4 flex flex-col gap-2">
-      <textarea
-        rows={2}
+      {/* No length limits: polls are written by the professor. Both boxes grow
+          as the text wraps onto new lines. */}
+      <AutoGrowTextarea
+        minRows={2}
         value={question}
         onChange={(e) => setQuestion(e.target.value)}
-        maxLength={MAX_QUESTION}
         placeholder="Ask the class a question…"
-        className={`w-full resize-none ${inputClass}`}
+        className={`w-full ${inputClass}`}
       />
-      <span className="self-end text-xs text-slate-400 dark:text-slate-500 tabular-nums">
-        {question.length} / {MAX_QUESTION}
-      </span>
 
       {options.map((text, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <span className="w-4 text-xs text-slate-400 dark:text-slate-500 tabular-nums">{i + 1}.</span>
-          <input
-            type="text"
+        <div key={i} className="flex items-start gap-2">
+          <span className="w-4 pt-2 text-xs text-slate-400 dark:text-slate-500 tabular-nums">{i + 1}.</span>
+          {/* An answer is one line of text that wraps; Enter still submits
+              rather than adding a line break, as it did before. */}
+          <AutoGrowTextarea
+            minRows={1}
             value={text}
-            onChange={(e) => setOption(i, e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+            onChange={(e) => setOption(i, e.target.value.replace(/\r?\n/g, " "))}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
             aria-label={`Option ${i + 1}`}
-            maxLength={MAX_OPTION}
             placeholder={`Option ${i + 1}`}
             className={`flex-1 min-w-0 ${inputClass}`}
           />
@@ -214,7 +212,7 @@ function PollResultCard({ snap, index, showNames }) {
   const { poll, tally, responded, total_students } = snap;
   return (
     <li className="py-3">
-      <p className="text-sm text-slate-500 dark:text-slate-400">
+      <p className="text-sm text-slate-500 dark:text-slate-400 break-words">
         <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 mr-2">#{index + 1}</span>
         <span className="font-semibold std-text">{poll.question}</span>
         {" · "}{timeOf(startedAt(poll))}{poll.closed_at ? ` – ${timeOf(poll.closed_at)}` : " · live"}
